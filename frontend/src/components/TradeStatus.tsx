@@ -87,7 +87,7 @@ export function TradeStatus({ tradeId }: TradeStatusProps) {
           />
           <MetricRow
             label="Output Amount"
-            value={data.status === "executed"
+            value={data.status === "executed" && data.outputAmount
               ? formatRawAmount(data.outputAmount, data.tokenOut)
               : "—"}
           />
