@@ -42,15 +42,19 @@ const config: HardhatUserConfig = {
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : [],
       timeout: 60_000,
     },
-    zeroGNewton: {
-      url: process.env.ZEROG_RPC_URL ?? "https://evmrpc-testnet.0g.ai",
-      chainId: 16600,
+    zeroGGalileo: {
+      url:      process.env.ZEROG_RPC_URL ?? "https://evmrpc-testnet.0g.ai",
+      chainId:  16602,
       accounts: process.env.ZEROG_PRIVATE_KEY ? [process.env.ZEROG_PRIVATE_KEY] : [],
+      timeout:  120_000,
     },
   },
 
   etherscan: {
-    apiKey: ARBISCAN_API_KEY,
+    apiKey: {
+      arbitrumSepolia: ARBISCAN_API_KEY,
+      zeroGGalileo:    "no-api-key-needed",  // Blockscout doesn't require key
+    },
     customChains: [
       {
         network: "arbitrumSepolia",
@@ -58,6 +62,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL:     "https://api-sepolia.arbiscan.io/api",
           browserURL: "https://sepolia.arbiscan.io",
+        },
+      },
+      {
+        network: "zeroGGalileo",
+        chainId: 16602,
+        urls: {
+          apiURL:     "https://chainscan-galileo.0g.ai/api",
+          browserURL: "https://chainscan-galileo.0g.ai",
         },
       },
     ],

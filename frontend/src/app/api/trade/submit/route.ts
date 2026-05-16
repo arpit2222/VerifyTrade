@@ -19,6 +19,7 @@ import {
   ValidationError, handleOptions,
 } from "@/middleware/auth";
 import { uploadEncryptedOrder } from "@/lib/0g-storage";
+import { appendTradeId }        from "@/lib/0g-kv";
 import { submitTrade, getExecutorSigner, areContractsDeployed }       from "@/lib/contracts";
 import type { TradeSubmitRequest, TradeSubmitResponse }                from "@/lib/types";
 
@@ -90,7 +91,12 @@ export async function POST(req: Request): Promise<NextResponse> {
       return errorResponse(`Contract call failed: ${clean}`, "CONTRACT_ERROR", 502);
     }
 
-    // ── 5. Respond with storage provenance info ──────────────────────────────
+    // ── 5. Index trade in 0G KV store (non-blocking) ────────────────────────
+    appendTradeId(trader, tradeId).catch(e =>
+      console.warn("[submit] KV indexing failed (non-fatal):", e instanceof Error ? e.message : e)
+    );
+
+    // ── 6. Respond with storage provenance info ──────────────────────────────
     const response: TradeSubmitResponse & {
       storage: { cid: string; real: boolean; explorerUrl: string; network: string };
     } = {
@@ -102,7 +108,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         cid:         orderCID,
         real:        storageReal,
         explorerUrl,
-        network:     storageReal ? "0G Newton Testnet" : "mock",
+        network:     storageReal ? "0G Galileo Testnet" : "mock",
       },
     };
 

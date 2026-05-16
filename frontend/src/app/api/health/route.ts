@@ -1,12 +1,11 @@
 /**
  * GET /api/health
  *
- * Lightweight status check used by:
- *   - Frontend startup banner
- *   - CI smoke tests after deployment
- *   - Uptime monitors
- *
- * Does NOT make contract calls — just checks config and network reachability.
+ * Comprehensive status check showing all 0G integrations:
+ *   - Arbitrum Sepolia RPC + contracts
+ *   - 0G Storage (Galileo testnet via real SDK)
+ *   - 0G Compute (AI inference provider availability)
+ *   - 0G KV Store (trade index layer)
  */
 
 import { NextResponse } from "next/server";
@@ -14,17 +13,14 @@ import { ethers }       from "ethers";
 import {
   withMiddleware,
   successResponse,
-  errorResponse,
   handleOptions,
 } from "@/middleware/auth";
 import { getContractAddresses, areContractsDeployed } from "@/lib/contracts";
-import { isStorageReachable }                         from "@/lib/0g-storage";
-import { isComputeReachable }                         from "@/lib/0g-compute";
-import type { HealthStatus }                          from "@/lib/types";
+import { isStorageReachable, isMockMode }              from "@/lib/0g-storage";
+import { isComputeReachable, listComputeProviders }    from "@/lib/0g-compute";
+import { isKvReachable, isKvMockMode }                 from "@/lib/0g-kv";
 
-export async function OPTIONS() {
-  return handleOptions();
-}
+export async function OPTIONS() { return handleOptions(); }
 
 export async function GET(req: Request) {
   return withMiddleware(req, async () => {
@@ -32,40 +28,35 @@ export async function GET(req: Request) {
     const addresses = getContractAddresses();
     const chainId   = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 421614);
 
-    let rpcConnected  = false;
-    let blockNumber   = 0;
-    let network       = "unknown";
+    let rpcConnected = false;
+    let blockNumber  = 0;
+    let network      = "unknown";
 
-    // Check RPC connectivity — 3-second timeout
     if (rpcUrl) {
       try {
         const provider = new ethers.JsonRpcProvider(rpcUrl);
         const [net, block] = await Promise.all([
-          Promise.race([
-            provider.getNetwork(),
-            new Promise<null>((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
-          ]),
-          Promise.race([
-            provider.getBlockNumber(),
-            new Promise<null>((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
-          ]),
+          Promise.race([provider.getNetwork(),     new Promise<null>((_, r) => setTimeout(() => r(new Error("timeout")), 3000))]),
+          Promise.race([provider.getBlockNumber(), new Promise<null>((_, r) => setTimeout(() => r(new Error("timeout")), 3000))]),
         ]);
-
         rpcConnected = true;
         network      = (net as ethers.Network)?.name ?? "arbitrum-sepolia";
         blockNumber  = (block as number) ?? 0;
-      } catch {
-        // RPC unreachable — report degraded but don't throw
-      }
+      } catch { /* degraded */ }
     }
 
-    // Check 0G Storage — non-blocking
-    const storageReachable = await isStorageReachable().catch(() => false);
+    // All 0G checks in parallel — each has its own timeout
+    const [storageReachable, computeReachable, kvReachable, computeProviders] = await Promise.all([
+      isStorageReachable().catch(() => false),
+      isComputeReachable().catch(() => false),
+      isKvReachable().catch(() => false),
+      listComputeProviders().catch(() => []),
+    ]);
 
     const contractsDeployed = areContractsDeployed();
-    const allHealthy = rpcConnected && contractsDeployed && storageReachable;
+    const allHealthy        = rpcConnected && contractsDeployed;
 
-    const status: HealthStatus = {
+    return successResponse({
       status:            allHealthy ? "ok" : rpcConnected ? "degraded" : "down",
       contractsDeployed,
       rpcConnected,
@@ -79,10 +70,36 @@ export async function GET(req: Request) {
         fairnessProof:           addresses.fairnessProof,
         mevRegistry:             addresses.mevRegistry,
       },
-    };
-
-    // Return 200 even when degraded so load balancers don't rotate the pod
-    // (the status field itself signals the issue)
-    return successResponse(status, 200);
+      // 0G integration status — shown in demo/health UI
+      zeroG: {
+        storage: {
+          reachable:   storageReachable,
+          mock:        isMockMode(),
+          indexerRpc:  process.env.ZEROG_INDEXER_RPC ? "configured" : "not set",
+          explorer:    "https://storagescan-galileo.0g.ai",
+        },
+        compute: {
+          reachable:       computeReachable,
+          providerCount:   computeProviders.length,
+          providers:       computeProviders.slice(0, 3).map(p => ({
+            address: p.address.slice(0, 10) + "…",
+            model:   p.model,
+            uptime:  p.uptime,
+          })),
+          marketplace:     "https://compute-marketplace.0g.ai",
+        },
+        kv: {
+          reachable: kvReachable,
+          mock:      isKvMockMode(),
+          purpose:   "trade index by trader address",
+        },
+        chain: {
+          galileoRpc:    process.env.ZEROG_RPC_URL ?? "https://evmrpc-testnet.0g.ai",
+          chainId:       16602,
+          explorer:      "https://chainscan-galileo.0g.ai",
+          walletFunded:  !!process.env.ZEROG_PRIVATE_KEY,
+        },
+      },
+    }, 200);
   });
 }
