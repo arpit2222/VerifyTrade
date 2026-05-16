@@ -51,6 +51,9 @@ function VerifyInner() {
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      // Clipboard API not available (e.g. non-HTTPS) — show URL in prompt instead
+      window.prompt("Copy this link:", url);
     });
   }, [tradeId]);
 
