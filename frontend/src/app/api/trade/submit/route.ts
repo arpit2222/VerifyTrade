@@ -18,7 +18,7 @@ import {
   requireFields, requirePositive, parseSlippage, sanitizeString,
   ValidationError, handleOptions,
 } from "@/middleware/auth";
-import { uploadEncryptedOrder, get0GStorageExplorerUrl, isMockMode } from "@/lib/0g-storage";
+import { uploadEncryptedOrder } from "@/lib/0g-storage";
 import { submitTrade, getExecutorSigner, areContractsDeployed }       from "@/lib/contracts";
 import type { TradeSubmitRequest, TradeSubmitResponse }                from "@/lib/types";
 

@@ -1,43 +1,44 @@
 /**
- * 0G Storage integration — production-ready with real SDK + HTTP fallback.
+ * 0G Storage integration — real SDK with in-memory fallback.
  *
- * Priority order:
- *   1. Real 0G HTTP API  (ZEROG_STORAGE_NODE set)
- *   2. Mock in-memory    (fallback for local dev / CI)
+ * Uses the official @0gfoundation/0g-storage-ts-sdk:
+ *   - Indexer.upload(MemData, rpcUrl, signer)  → rootHash (content address)
+ *   - Indexer.downloadToBlob(rootHash)          → Blob
  *
- * The 0G storage node HTTP API accepts:
- *   POST /api/v1/files   → { data: base64, filename, contentType }
- *   GET  /api/v1/files/:hash → encrypted blob
+ * Priority:
+ *   1. Real 0G Storage (ZEROG_INDEXER_RPC + ZEROG_PRIVATE_KEY set)
+ *   2. Mock in-memory  (fallback for local dev / CI)
  *
  * Docs: https://docs.0g.ai/build-with-0g/storage-sdk
  */
 
-import { createHash, randomBytes } from "crypto";
-import { encryptOrder, decryptOrder, serializePayload, deserializePayload, mockCid } from "./encryption";
+import { createHash } from "crypto";
+import { ethers } from "ethers";
+import { encryptOrder, decryptOrder, serializePayload, deserializePayload } from "./encryption";
 import type { StorageUploadResult, EncryptedPayload } from "./types";
 
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
 
-const STORAGE_NODE = (process.env.ZEROG_STORAGE_NODE ?? "").replace(/\/$/, "");
-const STORAGE_KEY  = process.env.ZEROG_STORAGE_API_KEY ?? "";
-const USE_MOCK     = !STORAGE_NODE || process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+const INDEXER_RPC = (process.env.ZEROG_INDEXER_RPC ?? "").replace(/\/$/, "");
+const ZG_RPC_URL  = (process.env.ZEROG_RPC_URL    ?? "https://evmrpc-testnet.0g.ai").replace(/\/$/, "");
+const ZG_KEY      = process.env.ZEROG_PRIVATE_KEY  ?? process.env.PRIVATE_KEY ?? "";
+const USE_MOCK    = !INDEXER_RPC || !ZG_KEY || process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
 
-// Persistent in-memory store for mock mode (lives for the server process lifetime)
+// Persistent in-memory store (lives for the server process lifetime)
 const mockStore = new Map<string, string>();
 
 // ---------------------------------------------------------------------------
-// 0G Explorer URL helper — used by the UI to deep-link to stored blobs
+// 0G Explorer URL helper
 // ---------------------------------------------------------------------------
 
-export function get0GStorageExplorerUrl(cid: string): string {
-  // 0G Newton testnet explorer for storage objects
-  return `https://storagescan-newton.0g.ai/file?cid=${cid}`;
+export function get0GStorageExplorerUrl(rootHash: string): string {
+  return `https://storagescan-galileo.0g.ai/file?root=${rootHash}`;
 }
 
 export function get0GNetworkName(): string {
-  return STORAGE_NODE.includes("testnet") ? "0G Newton Testnet" : "0G Storage";
+  return "0G Galileo Testnet";
 }
 
 // ---------------------------------------------------------------------------
@@ -49,96 +50,79 @@ function sha256Hex(data: string): string {
 }
 
 function makeMockCid(content: string): string {
-  const hash = sha256Hex(content + Date.now().toString());
-  return "0g" + hash.slice(0, 62); // 64-char CID prefixed with "0g"
+  return "0x" + sha256Hex(content + Date.now().toString());
+}
+
+function get0GSigner(): ethers.Wallet {
+  if (!ZG_KEY) throw new Error("ZEROG_PRIVATE_KEY not set");
+  const provider = new ethers.JsonRpcProvider(ZG_RPC_URL);
+  return new ethers.Wallet(
+    ZG_KEY.startsWith("0x") ? ZG_KEY : `0x${ZG_KEY}`,
+    provider
+  );
 }
 
 // ---------------------------------------------------------------------------
-// Real 0G Storage HTTP API
+// Real 0G Storage upload via SDK
 // ---------------------------------------------------------------------------
 
-async function realUpload(content: string, filename = "order.enc"): Promise<StorageUploadResult> {
-  const body = JSON.stringify({
-    data:        Buffer.from(content).toString("base64"),
-    filename,
-    contentType: "application/octet-stream",
+async function realUpload(
+  content: string
+): Promise<StorageUploadResult & { rootHash: string }> {
+  // Lazy-import the SDK so server builds without it still work
+  const { Indexer, MemData } = await import("@0gfoundation/0g-storage-ts-sdk");
+
+  const signer  = get0GSigner();
+  const indexer = new Indexer(INDEXER_RPC);
+  const data    = Buffer.from(content, "utf8");
+  const memData = new MemData(data);
+
+  const [result, err] = await indexer.upload(memData, ZG_RPC_URL, signer, {
+    finalityRequired: false,   // don't block on finality — faster for demo
+    skipIfFinalized:  true,    // skip re-upload if same content already stored
+    expectedReplica:  1,
   });
 
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (STORAGE_KEY) headers["Authorization"] = `Bearer ${STORAGE_KEY}`;
+  if (err) throw new Error(`0G Storage upload failed: ${err.message}`);
 
-  // Try multiple 0G API path variations
-  const endpoints = [
-    `${STORAGE_NODE}/api/v1/files`,
-    `${STORAGE_NODE}/upload`,
-    `${STORAGE_NODE}/api/files`,
-  ];
+  // SDK returns { txHash, rootHash, txSeq } for single-file uploads
+  const single = result as { txHash: string; rootHash: string; txSeq: number };
 
-  let lastError: Error | null = null;
+  console.log(`[0G Storage REAL] ✓ Uploaded → rootHash=${single.rootHash} txHash=${single.txHash}`);
 
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(endpoint, {
-        method:  "POST",
-        headers,
-        body,
-        signal:  AbortSignal.timeout(10_000),
-      });
-
-      if (res.ok) {
-        const json = await res.json() as Record<string, unknown>;
-        const cid = (json.cid ?? json.hash ?? json.root ?? json.id) as string;
-        if (cid) {
-          console.log(`[0G Storage REAL] Uploaded → ${cid} via ${endpoint}`);
-          return {
-            cid,
-            size:      content.length,
-            timestamp: Math.floor(Date.now() / 1000),
-          };
-        }
-      }
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-    }
-  }
-
-  throw lastError ?? new Error("0G Storage: all upload endpoints failed");
-}
-
-async function realRetrieve(cid: string): Promise<string> {
-  const headers: Record<string, string> = {};
-  if (STORAGE_KEY) headers["Authorization"] = `Bearer ${STORAGE_KEY}`;
-
-  const endpoints = [
-    `${STORAGE_NODE}/api/v1/files/${cid}`,
-    `${STORAGE_NODE}/retrieve/${cid}`,
-    `${STORAGE_NODE}/api/files/${cid}`,
-  ];
-
-  for (const endpoint of endpoints) {
-    try {
-      const res = await fetch(endpoint, { headers, signal: AbortSignal.timeout(10_000) });
-      if (res.ok) {
-        const json = await res.json() as Record<string, unknown>;
-        const data = json.data as string | undefined;
-        return data ? Buffer.from(data, "base64").toString("utf8") : await res.text();
-      }
-    } catch { /* try next endpoint */ }
-  }
-  throw new Error(`0G Storage: CID not retrievable: ${cid}`);
+  return {
+    cid:      single.rootHash,
+    rootHash: single.rootHash,
+    size:     data.byteLength,
+    timestamp: Math.floor(Date.now() / 1000),
+  };
 }
 
 // ---------------------------------------------------------------------------
-// Upload with fallback: try real → fall back to mock if unreachable
+// Real 0G Storage download via SDK
+// ---------------------------------------------------------------------------
+
+async function realDownload(rootHash: string): Promise<string> {
+  const { Indexer } = await import("@0gfoundation/0g-storage-ts-sdk");
+
+  const indexer = new Indexer(INDEXER_RPC);
+  const [blob, err] = await indexer.downloadToBlob(rootHash);
+
+  if (err) throw new Error(`0G Storage download failed: ${err.message}`);
+
+  return await blob.text();
+}
+
+// ---------------------------------------------------------------------------
+// Upload with mock fallback
 // ---------------------------------------------------------------------------
 
 async function uploadWithFallback(
-  content:  string,
-  filename: string
+  content: string
 ): Promise<StorageUploadResult & { isReal: boolean }> {
   if (!USE_MOCK) {
     try {
-      const result = await realUpload(content, filename);
+      const result = await realUpload(content);
       return { ...result, isReal: true };
     } catch (err) {
       console.warn("[0G Storage] Real upload failed, falling back to mock:", err);
@@ -148,10 +132,10 @@ async function uploadWithFallback(
   // Mock fallback
   const cid = makeMockCid(content);
   mockStore.set(cid, content);
-  console.log(`[0G Storage MOCK] Stored → ${cid}`);
+  console.log(`[0G Storage MOCK] Stored → ${cid.slice(0, 20)}…`);
   return {
     cid,
-    size:      content.length,
+    size:      Buffer.byteLength(content, "utf8"),
     timestamp: Math.floor(Date.now() / 1000),
     isReal:    false,
   };
@@ -168,7 +152,7 @@ export async function uploadEncryptedOrder(
   const payload   = encryptOrder(plaintext);
   const content   = serializePayload(payload);
 
-  const result = await uploadWithFallback(content, "order.enc");
+  const result = await uploadWithFallback(content);
   return {
     ...result,
     explorerUrl: get0GStorageExplorerUrl(result.cid),
@@ -180,12 +164,13 @@ export async function retrieveEncryptedOrder(
 ): Promise<Record<string, unknown>> {
   let content: string;
 
-  if (USE_MOCK || cid.startsWith("0g") || cid.startsWith("Qm")) {
+  const isMock = USE_MOCK || !cid.startsWith("0x");
+  if (isMock) {
     const stored = mockStore.get(cid);
     if (!stored) throw new Error(`[0G Storage] CID not found in local store: ${cid}`);
     content = stored;
   } else {
-    content = await realRetrieve(cid);
+    content = await realDownload(cid);
   }
 
   const payload   = deserializePayload(content);
@@ -204,7 +189,7 @@ export async function uploadAttestation(
     ? attestationData
     : JSON.stringify(attestationData, null, 2);
 
-  const result = await uploadWithFallback(content, "attestation.json");
+  const result = await uploadWithFallback(content);
   return {
     ...result,
     explorerUrl: get0GStorageExplorerUrl(result.cid),
@@ -214,12 +199,13 @@ export async function uploadAttestation(
 export async function retrieveAttestation(
   cid: string
 ): Promise<Record<string, unknown>> {
-  if (USE_MOCK || cid.startsWith("0g") || cid.startsWith("Qm")) {
+  const isMock = USE_MOCK || !cid.startsWith("0x");
+  if (isMock) {
     const stored = mockStore.get(cid);
     if (!stored) throw new Error(`[0G Storage] Attestation CID not found: ${cid}`);
     return JSON.parse(stored) as Record<string, unknown>;
   }
-  const content = await realRetrieve(cid);
+  const content = await realDownload(cid);
   return JSON.parse(content) as Record<string, unknown>;
 }
 
@@ -228,25 +214,19 @@ export async function retrieveAttestation(
 // ---------------------------------------------------------------------------
 
 export async function isStorageReachable(): Promise<boolean> {
-  if (USE_MOCK) return false; // honestly report mock status
+  if (USE_MOCK) return false;
   try {
-    const res = await fetch(`${STORAGE_NODE}/api/v1/status`, {
-      signal: AbortSignal.timeout(3_000),
-    });
-    return res.ok;
+    const { Indexer } = await import("@0gfoundation/0g-storage-ts-sdk");
+    const indexer = new Indexer(INDEXER_RPC);
+    const nodes   = await indexer.getShardedNodes();
+    return Array.isArray(nodes?.trusted) && nodes.trusted.length > 0;
   } catch {
-    try {
-      const res = await fetch(`${STORAGE_NODE}/health`, {
-        signal: AbortSignal.timeout(3_000),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    }
+    return false;
   }
 }
 
-export function isMockMode(): boolean { return USE_MOCK; }
-export function getStorageNode(): string { return STORAGE_NODE || "mock"; }
+export function isMockMode(): boolean  { return USE_MOCK; }
+export function getStorageNode(): string { return INDEXER_RPC || "mock"; }
 export function listMockCids(): string[] { return [...mockStore.keys()]; }
-export function clearMockStore(): void { mockStore.clear(); }
+export function clearMockStore(): void   { mockStore.clear(); }
+export { makeMockCid as mockCid };
