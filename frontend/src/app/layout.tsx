@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { cookies } from "next/headers";
 import { WalletProvider } from "@/components/WalletProvider";
-import { ToastProvider } from "@/components/Toast";
+import { ToastProvider }  from "@/components/Toast";
+import { Footer }         from "@/components/Footer";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -42,6 +43,7 @@ export default function RootLayout({
         <WalletProvider cookie={cookie}>
           <ToastProvider>
             {children}
+            <Footer />
           </ToastProvider>
         </WalletProvider>
       </body>
