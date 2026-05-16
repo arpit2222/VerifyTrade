@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  contracts:
+    name: Contracts — compile & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npm run build:contracts
+
+      - name: Run tests
+        run: npm test
+        env:
+          REPORT_GAS: true
+
+  frontend:
+    name: Frontend — type-check & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run type-check --workspace=frontend
+        env:
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: placeholder
+          NEXT_PUBLIC_CHAIN_ID: "421614"
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: placeholder
+          NEXT_PUBLIC_CHAIN_ID: "421614"

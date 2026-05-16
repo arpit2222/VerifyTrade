@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    // ---------------------------------------------------------------------------
+    // Language & environment
+    // ---------------------------------------------------------------------------
+    "target": "ES2022",
+    "lib": ["ES2022", "dom", "dom.iterable"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    // ---------------------------------------------------------------------------
+    // Strictness — all enabled for production code
+    // ---------------------------------------------------------------------------
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+
+    // ---------------------------------------------------------------------------
+    // Additional checks
+    // ---------------------------------------------------------------------------
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+
+    // ---------------------------------------------------------------------------
+    // Emit
+    // ---------------------------------------------------------------------------
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "removeComments": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // ---------------------------------------------------------------------------
+    // Path aliases — used across contracts, frontend and shared packages
+    // ---------------------------------------------------------------------------
+    "baseUrl": ".",
+    "paths": {
+      "@contracts/*": ["contracts/src/*"],
+      "@typechain/*": ["contracts/typechain-types/*"],
+      "@shared/*": ["packages/shared/src/*"],
+      "@/*": ["frontend/src/*"]
+    },
+
+    // ---------------------------------------------------------------------------
+    // Next.js / React
+    // ---------------------------------------------------------------------------
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowJs": false
+  },
+  "include": [
+    "contracts/src/**/*.ts",
+    "contracts/scripts/**/*.ts",
+    "contracts/test/**/*.ts",
+    "contracts/hardhat.config.ts",
+    "frontend/src/**/*.ts",
+    "frontend/src/**/*.tsx",
+    "frontend/next.config.js",
+    "packages/shared/src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "contracts/artifacts",
+    "contracts/cache",
+    "contracts/typechain-types",
+    "frontend/.next",
+    "frontend/out",
+    "dist"
+  ]
+}
