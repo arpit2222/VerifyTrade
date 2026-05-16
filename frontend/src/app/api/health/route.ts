@@ -11,6 +11,11 @@
 import { NextResponse } from "next/server";
 
 export const maxDuration = 20;
+
+// Cache health result for 15 seconds to avoid hammering external services
+let healthCache: { data: unknown; expiresAt: number } | null = null;
+const HEALTH_CACHE_TTL = 15_000;
+
 import { ethers }       from "ethers";
 import {
   withMiddleware,
@@ -31,6 +36,11 @@ export async function OPTIONS() { return handleOptions(); }
 
 export async function GET(req: Request) {
   return withMiddleware(req, async () => {
+    // Serve from cache if fresh
+    if (healthCache && Date.now() < healthCache.expiresAt) {
+      return successResponse(healthCache.data);
+    }
+
     const rpcUrl    = process.env.ARBITRUM_SEPOLIA_RPC_URL;
     const addresses = getContractAddresses();
     const chainId   = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 421614);
@@ -64,7 +74,7 @@ export async function GET(req: Request) {
     const contractsDeployed = areContractsDeployed();
     const allHealthy        = rpcConnected && contractsDeployed;
 
-    return successResponse({
+    const responseData = {
       status:            allHealthy ? "ok" : rpcConnected ? "degraded" : "down",
       contractsDeployed,
       rpcConnected,
@@ -116,6 +126,11 @@ export async function GET(req: Request) {
           walletFunded:  !!process.env.ZEROG_PRIVATE_KEY,
         },
       },
-    }, 200);
+    };
+
+    // Store in cache
+    healthCache = { data: responseData, expiresAt: Date.now() + HEALTH_CACHE_TTL };
+
+    return successResponse(responseData, 200);
   });
 }
