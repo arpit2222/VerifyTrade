@@ -82,15 +82,16 @@ interface StatsData {
 }
 
 function StatsContent({ data }: { data: StatsData }) {
-  const fairnessPct = data.fairnessRatePct > 0 ? data.fairnessRatePct : 100;
+  const hasProofs   = Number(data.totalProofsRecorded) > 0;
+  const fairnessPct = hasProofs ? data.fairnessRatePct : null;
 
   // Simulated historical trend data for the chart (last 7 periods)
   const trendData = generateTrendData(data);
 
   const pieData = [
-    { name: "Fair",   value: Number(data.totalFairProofs), color: "#22c55e" },
+    { name: "Fair",   value: Number(data.totalFairProofs),  color: "#22c55e" },
     { name: "Unfair", value: Math.max(0, Number(data.totalProofsRecorded) - Number(data.totalFairProofs)), color: "#ef4444" },
-  ];
+  ].filter(d => d.value > 0);
 
   return (
     <div className="space-y-5">
@@ -117,8 +118,8 @@ function StatsContent({ data }: { data: StatsData }) {
         <StatCard
           icon={<TrendingUp className="h-4 w-4 text-purple-400" />}
           label="Fairness Rate"
-          value={`${fairnessPct.toFixed(1)}%`}
-          sub={`${data.totalFairProofs}/${data.totalProofsRecorded} proofs`}
+          value={fairnessPct !== null ? `${fairnessPct.toFixed(1)}%` : "—"}
+          sub={hasProofs ? `${data.totalFairProofs}/${data.totalProofsRecorded} proofs` : "No proofs yet"}
         />
       </div>
 
