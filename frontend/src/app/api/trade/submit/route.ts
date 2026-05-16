@@ -18,8 +18,9 @@ import {
   requireFields, requirePositive, parseSlippage, sanitizeString,
   ValidationError, handleOptions,
 } from "@/middleware/auth";
-import { uploadEncryptedOrder } from "@/lib/0g-storage";
-import { appendTradeId }        from "@/lib/0g-kv";
+import { uploadEncryptedOrder }  from "@/lib/0g-storage";
+import { appendTradeId }         from "@/lib/0g-kv";
+import { authorizeTrader }       from "@/lib/0g-agentic-id";
 import { submitTrade, getExecutorSigner, areContractsDeployed }       from "@/lib/contracts";
 import type { TradeSubmitRequest, TradeSubmitResponse }                from "@/lib/types";
 
@@ -91,9 +92,12 @@ export async function POST(req: Request): Promise<NextResponse> {
       return errorResponse(`Contract call failed: ${clean}`, "CONTRACT_ERROR", 502);
     }
 
-    // ── 5. Index trade in 0G KV store (non-blocking) ────────────────────────
+    // ── 5. Index trade in 0G KV store + authorize agent (both non-blocking) ──
     appendTradeId(trader, tradeId).catch(e =>
       console.warn("[submit] KV indexing failed (non-fatal):", e instanceof Error ? e.message : e)
+    );
+    authorizeTrader(trader).catch(e =>
+      console.warn("[submit] Agent authorization failed (non-fatal):", e instanceof Error ? e.message : e)
     );
 
     // ── 6. Respond with storage provenance info ──────────────────────────────

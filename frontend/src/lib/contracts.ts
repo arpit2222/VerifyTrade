@@ -70,17 +70,27 @@ const MEV_REGISTRY_ABI: string[] = [
 // Contract address resolution
 // ---------------------------------------------------------------------------
 
-export function getContractAddresses(): ContractAddresses {
-  const vte  = process.env.NEXT_PUBLIC_VERIFIABLE_TRADE_EXECUTOR_ADDRESS ?? "";
-  const fp   = process.env.NEXT_PUBLIC_FAIRNESS_PROOF_ADDRESS ?? "";
-  const mr   = process.env.NEXT_PUBLIC_MEV_REGISTRY_ADDRESS ?? "";
-  const vt   = process.env.NEXT_PUBLIC_VERIFY_TRADE_ADDRESS ?? "";
+/** Chain identifier — "arbitrum" (default) or "0g" */
+export type ChainTarget = "arbitrum" | "0g";
 
+/**
+ * Get contract addresses for a specific chain.
+ * Defaults to Arbitrum Sepolia. Pass "0g" to get 0G Galileo addresses.
+ */
+export function getContractAddresses(chain: ChainTarget = "arbitrum"): ContractAddresses {
+  if (chain === "0g") {
+    return {
+      verifiableTradeExecutor: process.env.NEXT_PUBLIC_ZG_VERIFIABLE_TRADE_EXECUTOR_ADDRESS ?? "0xaEAD54C9251D14113f9d71Fee95183751a6F8bd1",
+      fairnessProof:           process.env.NEXT_PUBLIC_ZG_FAIRNESS_PROOF_ADDRESS            ?? "0x1B1aB51446fCEcBFF632FFCec769C55504E50a02",
+      mevRegistry:             process.env.NEXT_PUBLIC_ZG_MEV_REGISTRY_ADDRESS              ?? "0xdaa0675bf1592FE3A0a822b0194bA2b9e9BFfB92",
+      verifyTrade:             process.env.NEXT_PUBLIC_ZG_VERIFY_TRADE_ADDRESS              ?? "0x08d3c771E9f1C527f9a6798148953F1C898Ee1a5",
+    };
+  }
   return {
-    verifiableTradeExecutor: vte,
-    fairnessProof:           fp,
-    mevRegistry:             mr,
-    verifyTrade:             vt,
+    verifiableTradeExecutor: process.env.NEXT_PUBLIC_VERIFIABLE_TRADE_EXECUTOR_ADDRESS ?? "",
+    fairnessProof:           process.env.NEXT_PUBLIC_FAIRNESS_PROOF_ADDRESS            ?? "",
+    mevRegistry:             process.env.NEXT_PUBLIC_MEV_REGISTRY_ADDRESS              ?? "",
+    verifyTrade:             process.env.NEXT_PUBLIC_VERIFY_TRADE_ADDRESS              ?? "",
   };
 }
 
@@ -125,9 +135,17 @@ export function initializeContracts(signerOrProvider: Signer | Provider): Contra
 // Server-side provider (used by API routes)
 // ---------------------------------------------------------------------------
 
-let _provider: ethers.JsonRpcProvider | null = null;
+let _provider:   ethers.JsonRpcProvider | null = null;
+let _zgProvider: ethers.JsonRpcProvider | null = null;
 
-export function getProvider(): ethers.JsonRpcProvider {
+export function getProvider(chain: ChainTarget = "arbitrum"): ethers.JsonRpcProvider {
+  if (chain === "0g") {
+    if (!_zgProvider) {
+      const rpcUrl = process.env.ZEROG_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
+      _zgProvider  = new ethers.JsonRpcProvider(rpcUrl);
+    }
+    return _zgProvider;
+  }
   if (!_provider) {
     const rpcUrl = process.env.ARBITRUM_SEPOLIA_RPC_URL;
     if (!rpcUrl) throw new Error("ARBITRUM_SEPOLIA_RPC_URL not configured");
@@ -136,10 +154,18 @@ export function getProvider(): ethers.JsonRpcProvider {
   return _provider;
 }
 
-export function getExecutorSigner(): ethers.Wallet {
+export function getExecutorSigner(chain: ChainTarget = "arbitrum"): ethers.Wallet {
   const privateKey = process.env.EXECUTOR_PRIVATE_KEY ?? process.env.PRIVATE_KEY;
   if (!privateKey) throw new Error("EXECUTOR_PRIVATE_KEY not configured");
-  return new ethers.Wallet(privateKey, getProvider());
+  return new ethers.Wallet(privateKey, getProvider(chain));
+}
+
+/** Get a provider and address tuple for the active chain — used by the execute route. */
+export function getActiveChain(): { chain: ChainTarget; rpc: string; explorerBase: string } {
+  const useZG = process.env.ACTIVE_CHAIN === "0g";
+  return useZG
+    ? { chain: "0g", rpc: process.env.ZEROG_RPC_URL ?? "https://evmrpc-testnet.0g.ai", explorerBase: "https://chainscan-galileo.0g.ai" }
+    : { chain: "arbitrum", rpc: process.env.ARBITRUM_SEPOLIA_RPC_URL ?? "", explorerBase: "https://sepolia.arbiscan.io" };
 }
 
 // ---------------------------------------------------------------------------

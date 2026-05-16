@@ -26,12 +26,16 @@ const ZG_RPC_URL = (process.env.ZEROG_RPC_URL ?? "https://evmrpc-testnet.0g.ai")
 const ZG_KEY     = process.env.ZEROG_PRIVATE_KEY ?? process.env.PRIVATE_KEY ?? "";
 const USE_MOCK   = !ZG_KEY || process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
 
-/** Simulated base prices (USD) for execution output calculation */
-const MOCK_PRICES: Record<string, number> = {
-  USDC:  1.00, USDT: 1.00, DAI: 1.00,
-  ETH:   2_500, WETH: 2_500,
-  ARB:   1.20, WBTC: 65_000,
+/** Fallback prices (USD) — used only when 0G Compute price oracle is unreachable */
+const FALLBACK_PRICES: Record<string, number> = {
+  USDC: 1.00, USDT: 1.00, DAI: 1.00,
+  ETH:  2_500, WETH: 2_500,
+  ARB:  1.20, WBTC: 65_000,
 };
+
+/** Price cache from 0G Compute oracle — TTL 60s */
+let priceCache: { prices: Record<string, number>; fetchedAt: number } | null = null;
+const PRICE_CACHE_TTL_MS = 60_000;
 
 // ---------------------------------------------------------------------------
 // 0G Compute provider cache (refreshed once per cold start)
@@ -102,7 +106,7 @@ async function realExecute(jobInput: ComputeJobInput): Promise<TeeExecutionResul
 
   const { tokenIn, tokenOut, inputAmount, maxSlippage } = jobInput;
   const slippagePct   = calcSlippage(inputAmount, tokenIn, tokenOut, maxSlippage);
-  const outputAmount  = calcOutput(inputAmount, tokenIn, tokenOut, slippagePct);
+  const outputAmount  = await calcOutput(inputAmount, tokenIn, tokenOut, slippagePct);
 
   // Ask the AI model to produce a fairness attestation
   const prompt = buildFairnessPrompt({ tokenIn, tokenOut, inputAmount, outputAmount, slippagePct, maxSlippage });
@@ -168,7 +172,7 @@ async function mockExecute(jobInput: ComputeJobInput): Promise<TeeExecutionResul
   try { orderData = await retrieveEncryptedOrder(orderCID); } catch { /* use jobInput */ }
 
   const slippagePct  = calcSlippage(inputAmount, tokenIn, tokenOut, maxSlippage);
-  const outputAmount = calcOutput(inputAmount, tokenIn, tokenOut, slippagePct);
+  const outputAmount = await calcOutput(inputAmount, tokenIn, tokenOut, slippagePct);
 
   const tradeData = { orderCID, tokenIn, tokenOut, inputAmount, outputAmount, slippagePct,
     executedAt: Math.floor(Date.now() / 1000), ...orderData };
@@ -246,6 +250,71 @@ export async function listComputeProviders(): Promise<Array<{
 }
 
 // ---------------------------------------------------------------------------
+// 0G Compute price oracle
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetch live token prices via 0G Compute AI inference.
+ * Falls back to FALLBACK_PRICES if no provider is reachable.
+ */
+export async function fetchLivePrices(
+  tokens: string[]
+): Promise<Record<string, number>> {
+  const now = Date.now();
+  if (priceCache && now - priceCache.fetchedAt < PRICE_CACHE_TTL_MS) {
+    return priceCache.prices;
+  }
+
+  try {
+    const provider = cachedProvider ?? await get0GComputeProvider();
+    if (!provider) throw new Error("No provider");
+
+    const { createZGComputeNetworkBroker } = await import("@0gfoundation/0g-compute-ts-sdk");
+    const ethProvider = new ethers.JsonRpcProvider(ZG_RPC_URL);
+    const signer      = new ethers.Wallet(
+      ZG_KEY.startsWith("0x") ? ZG_KEY : `0x${ZG_KEY}`,
+      ethProvider
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const broker  = await createZGComputeNetworkBroker(signer as any);
+    const headers = await broker.inference.requestProcessor.getRequestHeaders(provider.address);
+    const endpoint = provider.endpoint || `${ZG_RPC_URL}/v1/proxy`;
+
+    const prompt = `Return ONLY a valid JSON object with current approximate USD prices for: ${tokens.join(", ")}.
+Format: {"USDC":1.00,"ETH":2500,...}
+No explanation, no markdown — pure JSON only.`;
+
+    const res = await fetch(`${endpoint}/chat/completions`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({
+        model:       provider.model,
+        messages:    [{ role: "user", content: prompt }],
+        max_tokens:  80,
+        temperature: 0,
+      }),
+      signal: AbortSignal.timeout(8_000),
+    });
+
+    if (res.ok) {
+      const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+      const text = json.choices?.[0]?.message?.content?.trim() ?? "{}";
+      const parsed = JSON.parse(text) as Record<string, number>;
+
+      // Merge with fallbacks for any missing tokens
+      const prices = { ...FALLBACK_PRICES, ...parsed };
+      priceCache = { prices, fetchedAt: now };
+      console.log("[0G Compute] Live prices fetched:", JSON.stringify(prices));
+      return prices;
+    }
+  } catch (err) {
+    console.warn("[0G Compute] Price oracle failed, using fallback:", err instanceof Error ? err.message : err);
+  }
+
+  return { ...FALLBACK_PRICES };
+}
+
+// ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
 
@@ -260,9 +329,10 @@ function calcSlippage(inputAmount: string, tokenIn: string, tokenOut: string, ma
   return Math.min(Math.max(0.01, base + noise), max * 0.9);
 }
 
-function calcOutput(inputAmount: string, tokenIn: string, tokenOut: string, slippage: number): string {
-  const priceIn  = MOCK_PRICES[tokenIn.toUpperCase()]  ?? 1;
-  const priceOut = MOCK_PRICES[tokenOut.toUpperCase()] ?? 1;
+async function calcOutput(inputAmount: string, tokenIn: string, tokenOut: string, slippage: number): Promise<string> {
+  const prices   = await fetchLivePrices([tokenIn, tokenOut]).catch(() => ({ ...FALLBACK_PRICES }));
+  const priceIn  = prices[tokenIn.toUpperCase()]  ?? FALLBACK_PRICES[tokenIn.toUpperCase()]  ?? 1;
+  const priceOut = prices[tokenOut.toUpperCase()] ?? FALLBACK_PRICES[tokenOut.toUpperCase()] ?? 1;
   const rate     = priceIn / priceOut;
   return Math.floor(Number(inputAmount) * rate * (1 - slippage / 100)).toString();
 }

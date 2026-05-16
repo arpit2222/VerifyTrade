@@ -19,6 +19,11 @@ import { getContractAddresses, areContractsDeployed } from "@/lib/contracts";
 import { isStorageReachable, isMockMode }              from "@/lib/0g-storage";
 import { isComputeReachable, listComputeProviders }    from "@/lib/0g-compute";
 import { isKvReachable, isKvMockMode }                 from "@/lib/0g-kv";
+import {
+  isAgentAlive,
+  AGENTIC_ID_CONTRACT,
+  VERIFYTRADE_AGENT_TOKEN_ID,
+}                                                      from "@/lib/0g-agentic-id";
 
 export async function OPTIONS() { return handleOptions(); }
 
@@ -46,11 +51,12 @@ export async function GET(req: Request) {
     }
 
     // All 0G checks in parallel — each has its own timeout
-    const [storageReachable, computeReachable, kvReachable, computeProviders] = await Promise.all([
+    const [storageReachable, computeReachable, kvReachable, computeProviders, agentAlive] = await Promise.all([
       isStorageReachable().catch(() => false),
       isComputeReachable().catch(() => false),
       isKvReachable().catch(() => false),
       listComputeProviders().catch(() => []),
+      isAgentAlive().catch(() => false),
     ]);
 
     const contractsDeployed = areContractsDeployed();
@@ -92,6 +98,14 @@ export async function GET(req: Request) {
           reachable: kvReachable,
           mock:      isKvMockMode(),
           purpose:   "trade index by trader address",
+        },
+        agenticId: {
+          alive:       agentAlive,
+          contract:    AGENTIC_ID_CONTRACT,
+          tokenId:     Number(VERIFYTRADE_AGENT_TOKEN_ID),
+          standard:    "ERC-7857",
+          capabilities: ["trade-execution", "mev-protection", "fairness-verification", "tee-attestation"],
+          explorer:    `https://chainscan-galileo.0g.ai/address/${AGENTIC_ID_CONTRACT}`,
         },
         chain: {
           galileoRpc:    process.env.ZEROG_RPC_URL ?? "https://evmrpc-testnet.0g.ai",

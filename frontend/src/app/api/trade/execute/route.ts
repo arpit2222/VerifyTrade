@@ -42,6 +42,7 @@ import {
 } from "@/middleware/auth";
 import { executeTradeInTEE }                  from "@/lib/0g-compute";
 import { uploadAttestation }                  from "@/lib/0g-storage";
+import { agentExecutionTag }                  from "@/lib/0g-agentic-id";
 import {
   getTrade,
   getExecutorSigner,
@@ -122,6 +123,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       measurement:  teeResult.teeMeasurement,
       executorId:   teeResult.executorId,
       executedAt:   teeResult.executedAt,
+      agentTag:     agentExecutionTag(),
     };
 
     let attestationCID: string;
@@ -144,7 +146,7 @@ export async function POST(req: Request): Promise<NextResponse> {
         teeResult.outputAmount,
         teeResult.attestation,
         teeResult.slippagePct,
-        JSON.stringify({ attestationCID, executorId: teeResult.executorId })
+        JSON.stringify({ attestationCID, executorId: teeResult.executorId, agentTag: agentExecutionTag() })
       );
       txHash = result.txHash;
     } catch (err) {
