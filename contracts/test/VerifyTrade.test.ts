@@ -160,5 +160,51 @@ describe("VerifyTrade", function () {
         )
       ).to.be.revertedWithCustomError(verifyTrade, "UnauthorizedExecutor");
     });
+
+    it("allows owner to add and remove executors", async function () {
+      const { verifyTrade, owner, executor } = await loadFixture(deployFixture);
+
+      // executor is authorized from fixture
+      expect(await verifyTrade.authorizedExecutors(executor.address)).to.be.true;
+
+      // Remove executor
+      await verifyTrade.connect(owner).setExecutor(executor.address, false);
+      expect(await verifyTrade.authorizedExecutors(executor.address)).to.be.false;
+    });
+
+    it("prevents non-owner from modifying executors", async function () {
+      const { verifyTrade, trader, executor } = await loadFixture(deployFixture);
+
+      await expect(
+        verifyTrade.connect(trader).setExecutor(executor.address, false)
+      ).to.be.reverted;
+    });
+  });
+
+  describe("Order submission events", function () {
+    it("emits OrderSubmitted event with correct orderId", async function () {
+      const { verifyTrade, tokenIn, tokenOut, trader, AMOUNT_IN } = await loadFixture(deployFixture);
+      const deadline = Math.floor(Date.now() / 1000) + 3600;
+
+      const tx = await verifyTrade.connect(trader).submitOrder(
+        await tokenIn.getAddress(),
+        await tokenOut.getAddress(),
+        AMOUNT_IN,
+        0n,
+        50,
+        deadline
+      );
+
+      const receipt = await tx.wait();
+      const event = receipt?.logs
+        .map((l) => {
+          try { return verifyTrade.interface.parseLog(l as unknown as { topics: string[]; data: string }); }
+          catch { return null; }
+        })
+        .find((e) => e?.name === "OrderSubmitted");
+
+      expect(event).to.not.be.null;
+      expect(event?.args[1]).to.equal(trader.address); // second arg is trader
+    });
   });
 });
