@@ -5,7 +5,7 @@
  * a per-trader index of trade IDs. This gives the dashboard instant
  * trade history lookups without scanning the blockchain.
  *
- * Stream ID: deterministic keccak256("verifytrade.v1.trades") — shared
+ * Stream ID: deterministic sha256("verifytrade.v1.trades") — shared
  *            across all instances, namespaced by trader address as key.
  *
  * Docs: https://docs.0g.ai/build-with-0g/storage-sdk/kv-store
@@ -30,7 +30,7 @@ const KV_NODE_URL = "http://34.19.125.196:6789"; // port 6789 is the KV RPC port
 const FLOW_CONTRACT = "0x22e03a6a89b950f1c82ec5e74f8eca321a105296";
 
 // Stream ID: deterministic namespace for VerifyTrade trade records
-const STREAM_ID = "0x" + createHash("keccak256").update("verifytrade.v1.trades").digest("hex");
+const STREAM_ID = "0x" + createHash("sha256").update("verifytrade.v1.trades").digest("hex");
 
 // In-memory fallback for when 0G KV is unavailable
 const localIndex = new Map<string, string[]>();
@@ -40,9 +40,9 @@ const localIndex = new Map<string, string[]>();
 // ---------------------------------------------------------------------------
 
 function traderKey(address: string): Uint8Array {
-  // Key = keccak256(lowercase trader address) as bytes
+  // Key = sha256(lowercase trader address) as bytes
   return Buffer.from(
-    createHash("keccak256").update(address.toLowerCase()).digest("hex"),
+    createHash("sha256").update(address.toLowerCase()).digest("hex"),
     "hex"
   );
 }

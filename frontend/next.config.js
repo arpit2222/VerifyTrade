@@ -41,6 +41,7 @@ const nextConfig = {
         "pino-pretty": false,
         lokijs: false,
         encoding: false,
+        "@react-native-async-storage/async-storage": false,
       };
     }
 
