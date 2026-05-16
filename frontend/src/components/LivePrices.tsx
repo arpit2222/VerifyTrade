@@ -42,8 +42,9 @@ const DISPLAY_TOKENS = ["ETH", "WBTC", "ARB", "USDC", "USDT"];
 export function LivePrices() {
   const { data, isLoading, isFetching, refetch } = useLivePrices();
 
-  const isLive = data?.source === "0g-compute";
-  const age    = data ? Math.floor((Date.now() / 1000) - data.fetchedAt) : null;
+  const isLive  = data?.source === "0g-compute";
+  const age     = data ? Math.floor((Date.now() / 1000) - data.fetchedAt) : null;
+  const isStale = age !== null && age > 300; // warn if prices > 5min old
 
   return (
     <Card>
@@ -54,10 +55,11 @@ export function LivePrices() {
               <TrendingUp className="h-4 w-4 text-green-400" />
               Live Prices
             </CardTitle>
-            <CardDescription className="text-xs mt-0.5 flex items-center gap-1">
+            <CardDescription className={`text-xs mt-0.5 flex items-center gap-1 ${isStale ? "text-yellow-500" : ""}`}>
               <Cpu className="h-3 w-3" />
               {isLive ? "via 0G Compute AI" : "fallback prices"}
-              {age !== null && ` · ${age}s ago`}
+              {age !== null && ` · ${age < 60 ? `${age}s` : `${Math.floor(age / 60)}m`} ago`}
+              {isStale && " · stale"}
             </CardDescription>
           </div>
           <button
