@@ -6,6 +6,8 @@ import {
   executeTrade,
   getTrade,
   getMevStats,
+  getAgentInfo,
+  getLivePrices,
 } from "@/lib/api-client";
 import type {
   TradeSubmitRequest,
@@ -115,6 +117,41 @@ export function useMevStats() {
     queryFn:         getMevStats,
     refetchInterval: 10_000,
     staleTime:       8_000,
+    retry:           1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useAgentInfo
+// ---------------------------------------------------------------------------
+
+/**
+ * Query hook for fetching on-chain ERC-7857 agent metadata.
+ * Stale time matches the server-side 5-minute cache on /api/agent.
+ */
+export function useAgentInfo() {
+  return useQuery({
+    queryKey:  ["agentInfo"],
+    queryFn:   getAgentInfo,
+    staleTime: 5 * 60 * 1_000, // 5 min — matches server cache
+    retry:     1,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// useLivePrices
+// ---------------------------------------------------------------------------
+
+/**
+ * Query hook for fetching live token prices from 0G Compute AI.
+ * Stale time matches the server-side 60s cache on /api/prices.
+ */
+export function useLivePrices() {
+  return useQuery({
+    queryKey:        ["livePrices"],
+    queryFn:         getLivePrices,
+    refetchInterval: 60_000,
+    staleTime:       55_000,
     retry:           1,
   });
 }
