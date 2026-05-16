@@ -20,8 +20,10 @@ export function CompliancePDF({ result, trade, tokenIn, tokenOut }: CompliancePD
     setGenerating(true);
     try {
       // Lazy-load jsPDF to avoid SSR issues
-      const { jsPDF } = await import("jspdf");
-      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jsPDFModule = await import("jspdf") as any;
+      const JsPDF = jsPDFModule.jsPDF ?? jsPDFModule.default;
+      const doc = new JsPDF({ unit: "mm", format: "a4" });
 
       const now      = new Date();
       const dateStr  = now.toISOString().split("T")[0] ?? now.toDateString();

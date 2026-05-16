@@ -5,18 +5,22 @@ import Link from "next/link";
 import { useAccount } from "wagmi";
 import { useWeb3Modal } from "@web3modal/wagmi/react";
 import {
-  ArrowRight, BarChart2, Clock, ExternalLink, Shield,
+  ArrowRight, BarChart2, Clock, Shield,
+  Bot, Network, TrendingUp,
 } from "lucide-react";
-import { Header } from "@/components/Header";
-import { MevStats } from "@/components/MevStats";
-import { Button } from "@/components/ui/Button";
+import { Header }          from "@/components/Header";
+import { MevStats }        from "@/components/MevStats";
+import { ZeroGStatus }     from "@/components/ZeroGStatus";
+import { AgentCard }       from "@/components/AgentCard";
+import { LivePrices }      from "@/components/LivePrices";
+import { Button }          from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { useGetTrade } from "@/hooks/useTrade";
-import { getTxUrl } from "@/lib/wagmi-config";
-import { truncateMiddle } from "@/lib/utils";
+import { useGetTrade }     from "@/hooks/useTrade";
+import { getTxUrl }        from "@/lib/wagmi-config";
+import { truncateMiddle }  from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
-// Recent trades — driven by local session storage to avoid a dedicated API
+// Recent trades — from session storage
 // ---------------------------------------------------------------------------
 
 function useRecentTradeIds(): string[] {
@@ -51,19 +55,17 @@ export default function DashboardPage() {
             Dashboard
           </h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Platform-wide MEV protection stats and your recent trades
+            Platform-wide MEV protection stats, 0G network status, and your recent trades
           </p>
         </div>
 
         {/* ── Stats + recent trades ─────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-          {/* MEV stats — spans 1 column */}
           <div className="lg:col-span-1">
             <MevStats />
           </div>
 
-          {/* Recent trades — spans 2 columns */}
           <div className="lg:col-span-2">
             <Card>
               <CardHeader>
@@ -103,19 +105,43 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Quick action ─────────────────────────────────────────── */}
-        <div className="rounded-xl border border-blue-900 bg-blue-950/30 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            <p className="font-semibold text-zinc-100">Ready to trade?</p>
-            <p className="text-sm text-zinc-400 mt-0.5">
-              Place a new order with MEV protection and fairness proofs.
-            </p>
+        {/* ── 0G Network Intelligence ───────────────────────────────── */}
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <Network className="h-5 w-5 text-blue-400" />
+            <h2 className="text-lg font-semibold text-zinc-100">0G Network Intelligence</h2>
+            <span className="text-xs text-zinc-500 border border-zinc-700 rounded-full px-2 py-0.5 ml-1">
+              Live
+            </span>
           </div>
-          <Button variant="primary" size="md" asChild>
-            <Link href="/trade" className="flex items-center gap-1.5">
-              Open Trade <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <ZeroGStatus />
+            <AgentCard />
+            <LivePrices />
+          </div>
+        </div>
+
+        {/* ── Nav tiles ─────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <NavTile
+            href="/trade"
+            icon={<TrendingUp className="h-5 w-5 text-blue-400" />}
+            title="Place Order"
+            desc="Submit a new MEV-protected trade"
+            primary
+          />
+          <NavTile
+            href="/verify"
+            icon={<Shield className="h-5 w-5 text-green-400" />}
+            title="Verify Proof"
+            desc="Inspect any trade's fairness attestation"
+          />
+          <NavTile
+            href="/agent"
+            icon={<Bot className="h-5 w-5 text-purple-400" />}
+            title="Agent Details"
+            desc="View the ERC-7857 on-chain executor agent"
+          />
         </div>
       </main>
     </div>
@@ -142,8 +168,8 @@ function RecentTradeRow({ tradeId }: { tradeId: string }) {
 
   const statusColor =
     data.status === "executed" && data.isFair ? "text-green-400" :
-    data.status === "executed"                 ? "text-red-400"   :
-    data.status === "committed"                ? "text-blue-400"  :
+    data.status === "executed"                ? "text-red-400"   :
+    data.status === "committed"               ? "text-blue-400"  :
     "text-zinc-400";
 
   return (
@@ -162,12 +188,44 @@ function RecentTradeRow({ tradeId }: { tradeId: string }) {
         {data.status === "executed" && (data.isFair ? " — Fair" : " — Unfair")}
       </span>
       <Link
-        href={`/trade/${data.tradeId}`}
+        href={`/verify?id=${data.tradeId}`}
         className="shrink-0 text-zinc-500 hover:text-zinc-300 transition-colors"
-        aria-label={`View trade ${data.tradeId}`}
+        aria-label={`Verify trade ${data.tradeId}`}
       >
         <ArrowRight className="h-4 w-4" />
       </Link>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Nav tile
+// ---------------------------------------------------------------------------
+
+function NavTile({
+  href, icon, title, desc, primary = false,
+}: {
+  href:     string;
+  icon:     React.ReactNode;
+  title:    string;
+  desc:     string;
+  primary?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`group rounded-xl border p-5 flex items-start gap-3 transition-colors ${
+        primary
+          ? "border-blue-900 bg-blue-950/30 hover:bg-blue-950/50"
+          : "border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800/60"
+      }`}
+    >
+      <div className="mt-0.5">{icon}</div>
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-zinc-100 group-hover:text-white transition-colors">{title}</p>
+        <p className="text-xs text-zinc-500 mt-0.5">{desc}</p>
+      </div>
+      <ArrowRight className="h-4 w-4 text-zinc-600 group-hover:text-zinc-400 mt-0.5 transition-colors shrink-0" />
+    </Link>
   );
 }

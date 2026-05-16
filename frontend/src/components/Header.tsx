@@ -35,6 +35,7 @@ export function Header() {
           <NavLink href="/trade">Trade</NavLink>
           <NavLink href="/verify">Verify</NavLink>
           <NavLink href="/dashboard">Dashboard</NavLink>
+          <NavLink href="/agent">Agent</NavLink>
         </nav>
 
         {/* ── Wallet area ──────────────────────────────────────────── */}

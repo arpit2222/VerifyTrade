@@ -104,6 +104,22 @@ export async function getHealth(): Promise<HealthData> {
   return request<HealthData>("/api/health");
 }
 
+/**
+ * GET /api/agent
+ * Returns the VerifyTrade ERC-7857 on-chain agent info from 0G Galileo.
+ */
+export async function getAgentInfo(): Promise<AgentInfo> {
+  return request<AgentInfo>("/api/agent");
+}
+
+/**
+ * GET /api/prices
+ * Returns live token prices fetched via 0G Compute AI inference.
+ */
+export async function getLivePrices(): Promise<PriceData> {
+  return request<PriceData>("/api/prices");
+}
+
 // ---------------------------------------------------------------------------
 // Response types (matches API output shapes)
 // ---------------------------------------------------------------------------
@@ -158,6 +174,30 @@ export interface HealthData {
     fairnessProof:           string;
     mevRegistry:             string;
   };
+}
+
+export interface AgentInfo {
+  tokenId:      number;
+  owner:        string;
+  agentName:    string;
+  name:         string;
+  symbol:       string;
+  totalSupply:  number;
+  capabilities: string[];
+  network:      string;
+  agentId:      string;
+  alive:        boolean;
+  standard:     string;
+  mintedAt:     string;
+  explorer:     string;
+  contractUrl:  string;
+}
+
+export interface PriceData {
+  prices:    Record<string, number>;
+  source:    string;
+  fetchedAt: number;
+  tokens:    string[];
 }
 
 // Re-export ApiError so callers can distinguish API errors from network errors
