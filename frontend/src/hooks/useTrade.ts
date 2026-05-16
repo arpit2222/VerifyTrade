@@ -40,7 +40,9 @@ export function useSubmitTrade() {
     onSuccess: (result) => {
       // Pre-populate the trade cache so the detail page loads instantly
       queryClient.invalidateQueries({ queryKey: queryKeys.mevStats() });
-      console.log("[useSubmitTrade] success — tradeId:", result.tradeId);
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[useSubmitTrade] success — tradeId:", result.tradeId);
+      }
     },
   });
 }
