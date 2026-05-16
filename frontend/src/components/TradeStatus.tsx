@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useGetTrade, formatSlippage } from "@/hooks/useTrade";
 import { getTxUrl } from "@/lib/wagmi-config";
-import { truncateMiddle, formatDate } from "@/lib/utils";
+import { truncateMiddle, formatDate, timeAgo } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -99,7 +99,7 @@ export function TradeStatus({ tradeId }: TradeStatusProps) {
             label="Actual Slippage"
             value={data.status === "executed" ? `${data.slippagePercent.toFixed(3)}%` : "—"}
           />
-          <MetricRow label="Submitted"  value={formatDate(data.timestamp)} />
+          <MetricRow label="Submitted"  value={`${timeAgo(data.timestamp)} · ${formatDate(data.timestamp)}`} />
           <MetricRow label="Trader"     value={truncateMiddle(data.trader, 6, 4)} mono />
         </div>
 
