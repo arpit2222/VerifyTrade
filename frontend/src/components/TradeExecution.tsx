@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   CheckCircle, XCircle, Lock, Zap, ExternalLink,
-  ChevronDown, ChevronUp, Copy, Check
+  Copy, Check
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +12,8 @@ import { useToast } from "@/components/Toast";
 import { useExecuteTrade } from "@/hooks/useTrade";
 import { getTxUrl } from "@/lib/wagmi-config";
 import { truncateMiddle } from "@/lib/utils";
+import { FairnessComparison } from "@/components/FairnessComparison";
+import { CompliancePDF } from "@/components/CompliancePDF";
 import type { TradeExecuteResponse } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -19,17 +21,18 @@ import type { TradeExecuteResponse } from "@/lib/types";
 // ---------------------------------------------------------------------------
 
 interface TradeExecutionProps {
-  tradeId:  string;
-  orderCID: string;
-  tokenIn:  string;
-  tokenOut: string;
+  tradeId:     string;
+  orderCID:    string;
+  tokenIn:     string;
+  tokenOut:    string;
+  inputAmount: string;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function TradeExecution({ tradeId, orderCID, tokenIn, tokenOut }: TradeExecutionProps) {
+export function TradeExecution({ tradeId, orderCID, tokenIn, tokenOut, inputAmount }: TradeExecutionProps) {
   const { toast }  = useToast();
   const execute    = useExecuteTrade();
   const [expanded, setExpanded] = useState(false);
@@ -101,7 +104,17 @@ export function TradeExecution({ tradeId, orderCID, tokenIn, tokenOut }: TradeEx
         )}
 
         {/* ── Result ───────────────────────────────────────────────── */}
-        {result && <ExecutionResult result={result} tokenOut={tokenOut} />}
+        {result && (
+          <div className="space-y-4">
+            <ExecutionResult result={result} tokenOut={tokenOut} tokenIn={tokenIn} />
+            <FairnessComparison
+              result={result}
+              tokenIn={tokenIn}
+              tokenOut={tokenOut}
+              inputAmount={inputAmount}
+            />
+          </div>
+        )}
 
         {/* ── Error ────────────────────────────────────────────────── */}
         {execute.isError && (
@@ -124,9 +137,11 @@ export function TradeExecution({ tradeId, orderCID, tokenIn, tokenOut }: TradeEx
 function ExecutionResult({
   result,
   tokenOut,
+  tokenIn,
 }: {
   result:   TradeExecuteResponse;
   tokenOut: string;
+  tokenIn?: string;
 }) {
   const isFair = result.proof === "fairness_verified";
 
@@ -172,7 +187,7 @@ function ExecutionResult({
       </div>
 
       {/* Links */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Button
           variant="outline"
           size="sm"
@@ -200,6 +215,12 @@ function ExecutionResult({
             View Trade Details
           </Link>
         </Button>
+
+        <CompliancePDF
+          result={result}
+          tokenIn={tokenIn ?? "TOKEN"}
+          tokenOut={tokenOut}
+        />
       </div>
     </div>
   );

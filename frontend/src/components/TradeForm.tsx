@@ -33,9 +33,17 @@ const TOKENS = [
 // Props
 // ---------------------------------------------------------------------------
 
+interface SubmitSuccessPayload {
+  tradeId:     string;
+  orderCID:    string;
+  txHash:      string;
+  tokenIn:     string;
+  tokenOut:    string;
+  inputAmount: string;
+}
+
 interface TradeFormProps {
-  /** Called when a trade is successfully submitted */
-  onSubmitSuccess?: (tradeId: string, orderCID: string, txHash: string) => void;
+  onSubmitSuccess?: (payload: SubmitSuccessPayload) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -43,7 +51,7 @@ interface TradeFormProps {
 // ---------------------------------------------------------------------------
 
 export function TradeForm({ onSubmitSuccess }: TradeFormProps) {
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const { open }        = useWeb3Modal();
   const { toast }       = useToast();
   const submit          = useSubmitTrade();
@@ -97,6 +105,7 @@ export function TradeForm({ onSubmitSuccess }: TradeFormProps) {
         tokenIn,
         tokenOut,
         maxSlippage: Number(slippage),
+        trader: address as `0x${string}`,
       });
 
       toast.success(
@@ -104,7 +113,14 @@ export function TradeForm({ onSubmitSuccess }: TradeFormProps) {
         `Trade #${result.tradeId} is queued for execution.`
       );
 
-      onSubmitSuccess?.(result.tradeId, result.orderCID, result.txHash);
+      onSubmitSuccess?.({
+        tradeId:     result.tradeId,
+        orderCID:    result.orderCID,
+        txHash:      result.txHash,
+        tokenIn,
+        tokenOut,
+        inputAmount,
+      });
 
       // Reset form
       setAmount("");

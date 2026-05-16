@@ -27,7 +27,7 @@ import type {
 
 // Plain string[] — no `as const` so ethers.Interface accepts them without type gymnastics
 const VERIFIABLE_TRADE_EXECUTOR_ABI: string[] = [
-  "function submitTrade(string encryptedOrder, uint256 inputAmount, string tokenIn, string tokenOut, uint256 maxSlippagePercent) external returns (uint256 tradeId)",
+  "function submitTrade(address trader, string encryptedOrder, uint256 inputAmount, string tokenIn, string tokenOut, uint256 maxSlippagePercent) external returns (uint256 tradeId)",
   "function recordTradeResult(uint256 tradeId, uint256 outputAmount, string attestationHash, uint256 actualSlippagePercent, string executionDetails) external returns (bool)",
   "function getTrade(uint256 tradeId) external view returns (tuple(uint256 tradeId, address trader, string encryptedOrder, uint256 inputAmount, uint256 outputAmount, string tokenIn, string tokenOut, uint256 maxSlippagePercent, uint256 actualSlippagePercent, string attestationHash, uint256 timestamp, bool isExecuted, bool isFair, string executionDetails))",
   "function getTrades(uint256[] tradeIds) external view returns (tuple(uint256 tradeId, address trader, string encryptedOrder, uint256 inputAmount, uint256 outputAmount, string tokenIn, string tokenOut, uint256 maxSlippagePercent, uint256 actualSlippagePercent, string attestationHash, uint256 timestamp, bool isExecuted, bool isFair, string executionDetails)[])",
@@ -156,9 +156,10 @@ export function getExecutorSigner(): ethers.Wallet {
  * @returns          { tradeId, txHash, receipt }
  */
 export async function submitTrade(
-  signer:    Signer,
-  orderData: TradeSubmitRequest,
-  orderCID:  string
+  signer:      Signer,
+  orderData:   TradeSubmitRequest,
+  orderCID:    string,
+  traderAddr:  string   // the actual user wallet — fixes the identity bug
 ): Promise<{ tradeId: string; txHash: string; receipt: ContractTransactionReceipt }> {
   const { vte } = initializeContracts(signer);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,6 +169,7 @@ export async function submitTrade(
   const maxSlippageBps = BigInt(Math.round(orderData.maxSlippage * 100));
 
   const tx = await c.submitTrade(
+    traderAddr,              // ← actual user, not executor
     orderCID,
     BigInt(orderData.inputAmount),
     orderData.tokenIn,

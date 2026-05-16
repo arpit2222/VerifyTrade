@@ -1,126 +1,109 @@
 /**
  * POST /api/trade/submit
  *
- * Accepts a trade request, encrypts the order, uploads it to 0G Storage,
- * and records it on-chain via VerifiableTradeExecutor.submitTrade().
+ * Encrypts the order, uploads to 0G Storage, submits on-chain with
+ * the real trader address so Arbiscan shows the user's wallet — not the executor.
  *
- * Request body:
- *   {
- *     "inputAmount":  "1000000",   // base units (e.g. 1 USDC = 1_000_000)
- *     "tokenIn":      "USDC",
- *     "tokenOut":     "ETH",
- *     "maxSlippage":  0.5          // percent (0.5 = 0.5%)
- *   }
- *
- * Response:
- *   {
- *     "success": true,
- *     "data": {
- *       "tradeId":   "1",
- *       "orderCID":  "Qm...",
- *       "txHash":    "0x...",
- *       "timestamp": 1234567890
- *     }
- *   }
+ * Required body fields:
+ *   inputAmount  string  — base units (e.g. 1 USDC = "1000000")
+ *   tokenIn      string  — "USDC"
+ *   tokenOut     string  — "WETH"
+ *   maxSlippage  number  — percent (0.5 = 0.5%)
+ *   trader       string  — user's wallet address (from connected wallet)
  */
 
 import { NextResponse } from "next/server";
 import {
-  withMiddleware,
-  successResponse,
-  errorResponse,
-  parseBody,
-  requireFields,
-  requirePositive,
-  parseSlippage,
-  sanitizeString,
-  ValidationError,
-  handleOptions,
+  withMiddleware, successResponse, errorResponse, parseBody,
+  requireFields, requirePositive, parseSlippage, sanitizeString,
+  ValidationError, handleOptions,
 } from "@/middleware/auth";
-import { uploadEncryptedOrder }                             from "@/lib/0g-storage";
-import { submitTrade, getExecutorSigner, areContractsDeployed } from "@/lib/contracts";
-import type { TradeSubmitRequest, TradeSubmitResponse }    from "@/lib/types";
+import { uploadEncryptedOrder, get0GStorageExplorerUrl, isMockMode } from "@/lib/0g-storage";
+import { submitTrade, getExecutorSigner, areContractsDeployed }       from "@/lib/contracts";
+import type { TradeSubmitRequest, TradeSubmitResponse }                from "@/lib/types";
 
-export async function OPTIONS() {
-  return handleOptions();
-}
+export async function OPTIONS() { return handleOptions(); }
 
 export async function POST(req: Request): Promise<NextResponse> {
   return withMiddleware(req, async () => {
-    // ── 1. Parse body ────────────────────────────────────────────────────────
+    // ── 1. Parse & validate ──────────────────────────────────────────────────
     const body = await parseBody(req);
-    if (!body) {
-      throw new ValidationError("Request body must be valid JSON with Content-Type: application/json");
+    if (!body) throw new ValidationError("Request body must be valid JSON");
+
+    requireFields(body, ["inputAmount", "tokenIn", "tokenOut", "maxSlippage", "trader"]);
+
+    const inputAmount = requirePositive(body.inputAmount, "inputAmount");
+    const tokenIn     = sanitizeString(body.tokenIn,  20).toUpperCase();
+    const tokenOut    = sanitizeString(body.tokenOut, 20).toUpperCase();
+    const maxSlippage = parseSlippage(body.maxSlippage);
+    const trader      = sanitizeString(body.trader, 42);
+
+    if (tokenIn === tokenOut) throw new ValidationError("tokenIn and tokenOut must differ", ["tokenIn", "tokenOut"]);
+    if (!tokenIn || !tokenOut) throw new ValidationError("Token symbols must not be empty", ["tokenIn", "tokenOut"]);
+    if (!trader.startsWith("0x") || trader.length !== 42) {
+      throw new ValidationError("trader must be a valid 0x Ethereum address", ["trader"]);
     }
 
-    // ── 2. Validate inputs ───────────────────────────────────────────────────
-    requireFields(body, ["inputAmount", "tokenIn", "tokenOut", "maxSlippage"]);
-
-    const inputAmount  = requirePositive(body.inputAmount, "inputAmount");
-    const tokenIn      = sanitizeString(body.tokenIn, 20).toUpperCase();
-    const tokenOut     = sanitizeString(body.tokenOut, 20).toUpperCase();
-    const maxSlippage  = parseSlippage(body.maxSlippage);
-
-    if (tokenIn === tokenOut) {
-      throw new ValidationError("tokenIn and tokenOut must be different", ["tokenIn", "tokenOut"]);
-    }
-    if (!tokenIn || !tokenOut) {
-      throw new ValidationError("Token symbols must be non-empty strings", ["tokenIn", "tokenOut"]);
-    }
-
-    // ── 3. Check contracts deployed ──────────────────────────────────────────
     if (!areContractsDeployed()) {
-      return errorResponse(
-        "Contracts not deployed. Run `npm run deploy:testnet` and update .env.",
-        "CONTRACT_ERROR",
-        503
-      );
+      return errorResponse("Contracts not deployed — run `npm run deploy:testnet`", "CONTRACT_ERROR", 503);
     }
 
-    // ── 4. Build order object ────────────────────────────────────────────────
+    // ── 2. Build order object (encrypted before hitting the wire) ────────────
     const orderData = {
       inputAmount,
       tokenIn,
       tokenOut,
       maxSlippage,
+      trader,
       submittedAt: Math.floor(Date.now() / 1000),
-      version:     "1",
+      version:     "2",
     };
 
-    // ── 5. Encrypt & upload to 0G Storage ───────────────────────────────────
-    let orderCID: string;
+    // ── 3. Encrypt & upload to 0G Storage ───────────────────────────────────
+    let orderCID:    string;
+    let explorerUrl: string;
+    let storageReal: boolean;
+
     try {
-      const upload = await uploadEncryptedOrder(orderData as unknown as Record<string, unknown>);
-      orderCID = upload.cid;
+      const upload  = await uploadEncryptedOrder(orderData as Record<string, unknown>);
+      orderCID    = upload.cid;
+      explorerUrl = upload.explorerUrl;
+      storageReal = upload.isReal;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Storage upload failed";
       return errorResponse(msg, "STORAGE_ERROR", 502);
     }
 
-    // ── 6. Submit on-chain ───────────────────────────────────────────────────
+    // ── 4. Submit on-chain — passing real trader address ────────────────────
     let tradeId: string;
     let txHash:  string;
 
     try {
       const signer  = getExecutorSigner();
-      const request: TradeSubmitRequest = { inputAmount, tokenIn, tokenOut, maxSlippage };
-      const result  = await submitTrade(signer, request, orderCID);
-
+      const request: TradeSubmitRequest = { inputAmount, tokenIn, tokenOut, maxSlippage, trader: trader as `0x${string}` };
+      const result  = await submitTrade(signer, request, orderCID, trader);
       tradeId = result.tradeId;
       txHash  = result.txHash;
     } catch (err) {
-      // Surface useful messages from ethers (insufficient funds, reverts, etc.)
       const raw   = err instanceof Error ? err.message : String(err);
       const clean = raw.includes("reason=") ? raw.split("reason=")[1]?.split(",")[0]?.trim() ?? raw : raw;
       return errorResponse(`Contract call failed: ${clean}`, "CONTRACT_ERROR", 502);
     }
 
-    // ── 7. Respond ───────────────────────────────────────────────────────────
-    const response: TradeSubmitResponse = {
+    // ── 5. Respond with storage provenance info ──────────────────────────────
+    const response: TradeSubmitResponse & {
+      storage: { cid: string; real: boolean; explorerUrl: string; network: string };
+    } = {
       tradeId,
       orderCID,
-      txHash: txHash as `0x${string}`,
+      txHash:    txHash as `0x${string}`,
       timestamp: Math.floor(Date.now() / 1000),
+      storage: {
+        cid:         orderCID,
+        real:        storageReal,
+        explorerUrl,
+        network:     storageReal ? "0G Newton Testnet" : "mock",
+      },
     };
 
     return successResponse(response, 201);

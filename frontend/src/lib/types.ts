@@ -42,11 +42,11 @@ export interface Trade {
 
 /** Data required to submit a new trade */
 export interface TradeSubmitRequest {
-  inputAmount:    string;          // e.g. "1000000" (USDC, 6 decimals)
-  tokenIn:        string;          // e.g. "USDC"
-  tokenOut:       string;          // e.g. "ETH"
-  maxSlippage:    number;          // e.g. 0.5 (percent)
-  traderAddress?: Address;         // optional — server can derive from signer
+  inputAmount:  string;    // e.g. "1000000" (USDC, 6 decimals)
+  tokenIn:      string;    // e.g. "USDC"
+  tokenOut:     string;    // e.g. "ETH"
+  maxSlippage:  number;    // e.g. 0.5 (percent)
+  trader:       Address;   // connected wallet — required for on-chain identity
 }
 
 export interface TradeSubmitResponse {
@@ -70,6 +70,12 @@ export interface TradeExecuteResponse {
   proofId:      string;
   proof:        "fairness_verified" | "fairness_failed";
   txHash:       HexString;
+  /** Counterfactual: what slippage would have been without TEE/VerifyTrade */
+  counterfactual?: {
+    estimatedSlippage: number;
+    mevImpact:         number;
+    savingsPercent:    number;
+  };
 }
 
 // ---------------------------------------------------------------------------

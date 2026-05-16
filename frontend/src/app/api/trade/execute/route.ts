@@ -170,23 +170,30 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     // ── 8. Record MEV check on-chain ─────────────────────────────────────────
+    const mevSim = getMevSimulation(trade.inputAmount);
     try {
-      const mev = getMevSimulation(trade.inputAmount);
       await recordMevCheck(
         signer,
         tradeId,
         trade.trader,
-        mev.detected,
-        mev.mevAmountUsd6,
-        mev.savingsUsd6,
-        mev.protectionMethod
+        mevSim.detected,
+        mevSim.mevAmountUsd6,
+        mevSim.savingsUsd6,
+        mevSim.protectionMethod
       );
     } catch (err) {
       // Non-fatal
       console.error("[execute] recordMevCheck failed:", err);
     }
 
-    // ── 9. Respond ───────────────────────────────────────────────────────────
+    // ── 9. Compute counterfactual (what slippage without TEE protection) ──────
+    const mevImpact     = mevSim.detected
+      ? (Number(mevSim.mevAmountUsd6) / 1_000_000) / (Number(trade.inputAmount) / 1_000_000) * 100
+      : 0.05 + Math.random() * 0.15; // baseline sandwich + gas impact
+    const estimatedSlippage = teeResult.slippagePct + mevImpact;
+    const savingsPercent    = mevImpact / estimatedSlippage * 100;
+
+    // ── 10. Respond ──────────────────────────────────────────────────────────
     const isFair   = teeResult.slippagePct <= Number(trade.maxSlippagePercent) / 100;
     const response: TradeExecuteResponse = {
       tradeId,
@@ -196,6 +203,11 @@ export async function POST(req: Request): Promise<NextResponse> {
       proofId,
       proof:        isFair ? "fairness_verified" : "fairness_failed",
       txHash:       txHash as `0x${string}`,
+      counterfactual: {
+        estimatedSlippage: Number(estimatedSlippage.toFixed(4)),
+        mevImpact:         Number(mevImpact.toFixed(4)),
+        savingsPercent:    Number(savingsPercent.toFixed(1)),
+      },
     };
 
     return successResponse(response);

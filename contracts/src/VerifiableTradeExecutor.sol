@@ -162,15 +162,34 @@ contract VerifiableTradeExecutor is Ownable, ReentrancyGuard, Pausable {
      * @param maxSlippagePercent  Max acceptable slippage × 100 (e.g. 50 = 0.5%).
      * @return tradeId         Unique identifier for this trade.
      */
+    /**
+     * @notice Submit a trade on behalf of a specific trader address.
+     *
+     * @dev The `trader` parameter is the actual end-user's wallet.
+     *      The caller (msg.sender) must be an authorized executor/relayer.
+     *      This separates relayer gas from user identity, enabling
+     *      meta-transaction and institutional compliance flows.
+     *
+     * @param trader           The end-user's wallet address (for audit trail).
+     * @param encryptedOrder   0G Storage CID of the AES-256-GCM encrypted order.
+     * @param inputAmount      Amount of tokenIn the trader is providing.
+     * @param tokenIn          Symbol of the input token (e.g. "USDC").
+     * @param tokenOut         Symbol of the output token (e.g. "WETH").
+     * @param maxSlippagePercent  Max acceptable slippage × 100 (50 = 0.5%).
+     * @return tradeId         Unique identifier for this trade.
+     */
     function submitTrade(
+        address trader,
         string calldata encryptedOrder,
         uint256 inputAmount,
         string calldata tokenIn,
         string calldata tokenOut,
         uint256 maxSlippagePercent
     ) external nonReentrant whenNotPaused returns (uint256 tradeId) {
+        if (trader == address(0)) revert ZeroAddress();
         if (inputAmount == 0) revert ZeroInputAmount();
         if (bytes(encryptedOrder).length == 0) revert EmptyOrderHash();
+        if (bytes(encryptedOrder).length > 256) revert EmptyOrderHash(); // guard unbounded storage
         if (bytes(tokenIn).length == 0 || bytes(tokenOut).length == 0) revert EmptyTokenSymbol();
         if (maxSlippagePercent > MAX_SLIPPAGE_SCALE) {
             revert InvalidSlippage(maxSlippagePercent, MAX_SLIPPAGE_SCALE);
@@ -180,7 +199,7 @@ contract VerifiableTradeExecutor is Ownable, ReentrancyGuard, Pausable {
 
         _trades[tradeId] = Trade({
             tradeId:              tradeId,
-            trader:               msg.sender,
+            trader:               trader,
             encryptedOrder:       encryptedOrder,
             inputAmount:          inputAmount,
             outputAmount:         0,
@@ -195,12 +214,12 @@ contract VerifiableTradeExecutor is Ownable, ReentrancyGuard, Pausable {
             executionDetails:     ""
         });
 
-        _traderHistory[msg.sender].push(tradeId);
+        _traderHistory[trader].push(tradeId);
         totalTradesSubmitted++;
 
         emit TradeSubmitted(
             tradeId,
-            msg.sender,
+            trader,
             tokenIn,
             tokenOut,
             inputAmount,

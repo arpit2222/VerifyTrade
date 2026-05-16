@@ -6,24 +6,17 @@ import { TradeForm } from "@/components/TradeForm";
 import { TradeExecution } from "@/components/TradeExecution";
 import { MevStats } from "@/components/MevStats";
 
-export default function TradePage() {
-  const [pending, setPending] = useState<{
-    tradeId: string;
-    orderCID: string;
-    txHash: string;
-    tokenIn: string;
-    tokenOut: string;
-  } | null>(null);
+interface PendingTrade {
+  tradeId:     string;
+  orderCID:    string;
+  txHash:      string;
+  tokenIn:     string;
+  tokenOut:    string;
+  inputAmount: string;
+}
 
-  function handleSubmitSuccess(
-    tradeId: string,
-    orderCID: string,
-    txHash: string,
-    tokenIn: string,
-    tokenOut: string
-  ) {
-    setPending({ tradeId, orderCID, txHash, tokenIn, tokenOut });
-  }
+export default function TradePage() {
+  const [pending, setPending] = useState<PendingTrade | null>(null);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -68,13 +61,7 @@ export default function TradePage() {
 
           {/* Left column — trade form + execution */}
           <div className="lg:col-span-2 space-y-6">
-            <TradeForm
-              onSubmitSuccess={(tradeId, orderCID, txHash) => {
-                // We need tokenIn/tokenOut from the form — TradeForm exposes them via callback
-                // For now use a sentinel so TradeExecution shows with the CID
-                handleSubmitSuccess(tradeId, orderCID, txHash, "USDC", "WETH");
-              }}
-            />
+            <TradeForm onSubmitSuccess={setPending} />
 
             {pending && (
               <TradeExecution
@@ -82,15 +69,15 @@ export default function TradePage() {
                 orderCID={pending.orderCID}
                 tokenIn={pending.tokenIn}
                 tokenOut={pending.tokenOut}
+                inputAmount={pending.inputAmount}
               />
             )}
           </div>
 
-          {/* Right column — MEV stats */}
+          {/* Right column — MEV stats + how it works */}
           <div className="space-y-6">
             <MevStats />
 
-            {/* How it works */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 space-y-3">
               <p className="text-sm font-semibold text-zinc-300">How it works</p>
               {[
