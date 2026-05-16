@@ -74,10 +74,10 @@ async function get0GComputeProvider(): Promise<CachedProvider | null> {
 
     cachedProvider   = { address: String(p.provider), endpoint, model };
     cachedProviderAt = now;
-    console.log(`[0G Compute] Provider cached: ${cachedProvider.address} model=${model}`);
+    if (process.env.NODE_ENV !== "production") console.log(`[0G Compute] Provider cached: ${cachedProvider.address} model=${model}`);
     return cachedProvider;
   } catch (err) {
-    console.warn("[0G Compute] Failed to list providers:", err instanceof Error ? err.message : err);
+    if (process.env.NODE_ENV !== "production") console.warn("[0G Compute] Failed to list providers:", err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -137,7 +137,7 @@ async function realExecute(jobInput: ComputeJobInput): Promise<TeeExecutionResul
     };
     aiVerdict = json.choices?.[0]?.message?.content?.trim() ?? aiVerdict;
   } else {
-    console.warn("[0G Compute] Inference call returned", inferRes.status);
+    if (process.env.NODE_ENV !== "production") console.warn("[0G Compute] Inference call returned", inferRes.status);
   }
 
   const teeMeasurement = buildMeasurement({ tokenIn, tokenOut, inputAmount, outputAmount, slippagePct, aiVerdict });
@@ -147,7 +147,7 @@ async function realExecute(jobInput: ComputeJobInput): Promise<TeeExecutionResul
     executorVersion: "verifytrade-0g-compute-v1",
   });
 
-  console.log(`[0G Compute REAL] ✓ ${tokenIn}→${tokenOut} slip=${slippagePct.toFixed(3)}% model=${computeProvider.model}`);
+  if (process.env.NODE_ENV !== "production") console.log(`[0G Compute REAL] ✓ ${tokenIn}→${tokenOut} slip=${slippagePct.toFixed(3)}% model=${computeProvider.model}`);
 
   return {
     outputAmount,
@@ -183,7 +183,7 @@ async function mockExecute(jobInput: ComputeJobInput): Promise<TeeExecutionResul
     executorVersion: "verifytrade-tee-v0.1.0",
   });
 
-  console.log(`[0G Compute MOCK] ${tokenIn}→${tokenOut} slip=${slippagePct.toFixed(3)}% out=${outputAmount}`);
+  if (process.env.NODE_ENV !== "production") console.log(`[0G Compute MOCK] ${tokenIn}→${tokenOut} slip=${slippagePct.toFixed(3)}% out=${outputAmount}`);
 
   return {
     outputAmount, slippagePct, attestation, teeMeasurement,
@@ -201,7 +201,7 @@ export async function executeTradeInTEE(jobInput: ComputeJobInput): Promise<TeeE
     try {
       return await realExecute(jobInput);
     } catch (err) {
-      console.warn("[0G Compute] Real execution failed, falling back to mock:", err instanceof Error ? err.message : err);
+      if (process.env.NODE_ENV !== "production") console.warn("[0G Compute] Real execution failed, falling back to mock:", err instanceof Error ? err.message : err);
     }
   }
   return mockExecute(jobInput);
@@ -308,7 +308,7 @@ No explanation, no markdown — pure JSON only.`;
       return prices;
     }
   } catch (err) {
-    console.warn("[0G Compute] Price oracle failed, using fallback:", err instanceof Error ? err.message : err);
+    if (process.env.NODE_ENV !== "production") console.warn("[0G Compute] Price oracle failed, using fallback:", err instanceof Error ? err.message : err);
   }
 
   return { ...FALLBACK_PRICES };

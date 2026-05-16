@@ -70,7 +70,7 @@ export async function getTraderTradeIds(traderAddress: string): Promise<string[]
     const raw    = Buffer.from(value.data).toString("utf8");
     return JSON.parse(raw) as string[];
   } catch (err) {
-    console.warn("[0G KV] Read failed:", err instanceof Error ? err.message : err);
+    if (process.env.NODE_ENV !== "production") console.warn("[0G KV] Read failed:", err instanceof Error ? err.message : err);
     return localIndex.get(traderAddress.toLowerCase()) ?? [];
   }
 }
@@ -86,7 +86,7 @@ export async function appendTradeId(traderAddress: string, tradeId: string): Pro
     const existing = localIndex.get(lowerAddr) ?? [];
     if (!existing.includes(tradeId)) existing.push(tradeId);
     localIndex.set(lowerAddr, existing);
-    console.log(`[0G KV MOCK] Indexed trade ${tradeId} for ${lowerAddr.slice(0, 10)}…`);
+    if (process.env.NODE_ENV !== "production") console.log(`[0G KV MOCK] Indexed trade ${tradeId} for ${lowerAddr.slice(0, 10)}…`);
     return true;
   }
 
@@ -121,10 +121,10 @@ export async function appendTradeId(traderAddress: string, tradeId: string): Pro
     const [result, writeErr] = await batcher.exec({ finalityRequired: false });
     if (writeErr) throw writeErr;
 
-    console.log(`[0G KV REAL] ✓ Trade ${tradeId} indexed for ${lowerAddr.slice(0, 10)}… txHash=${result.txHash}`);
+    if (process.env.NODE_ENV !== "production") console.log(`[0G KV REAL] ✓ Trade ${tradeId} indexed for ${lowerAddr.slice(0, 10)}… txHash=${result.txHash}`);
     return true;
   } catch (err) {
-    console.warn("[0G KV] Write failed:", err instanceof Error ? err.message : err);
+    if (process.env.NODE_ENV !== "production") console.warn("[0G KV] Write failed:", err instanceof Error ? err.message : err);
     // Fallback: keep in memory
     const existing = localIndex.get(lowerAddr) ?? [];
     if (!existing.includes(tradeId)) existing.push(tradeId);

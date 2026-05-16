@@ -88,7 +88,7 @@ async function realUpload(
   // SDK returns { txHash, rootHash, txSeq } for single-file uploads
   const single = result as { txHash: string; rootHash: string; txSeq: number };
 
-  console.log(`[0G Storage REAL] ✓ Uploaded → rootHash=${single.rootHash} txHash=${single.txHash}`);
+  if (process.env.NODE_ENV !== "production") console.log(`[0G Storage REAL] ✓ Uploaded → rootHash=${single.rootHash} txHash=${single.txHash}`);
 
   return {
     cid:      single.rootHash,
@@ -125,14 +125,14 @@ async function uploadWithFallback(
       const result = await realUpload(content);
       return { ...result, isReal: true };
     } catch (err) {
-      console.warn("[0G Storage] Real upload failed, falling back to mock:", err);
+      if (process.env.NODE_ENV !== "production") console.warn("[0G Storage] Real upload failed, falling back to mock:", err);
     }
   }
 
   // Mock fallback
   const cid = makeMockCid(content);
   mockStore.set(cid, content);
-  console.log(`[0G Storage MOCK] Stored → ${cid.slice(0, 20)}…`);
+  if (process.env.NODE_ENV !== "production") console.log(`[0G Storage MOCK] Stored → ${cid.slice(0, 20)}…`);
   return {
     cid,
     size:      Buffer.byteLength(content, "utf8"),
