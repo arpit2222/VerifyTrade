@@ -43,6 +43,7 @@ async function submitAndGetId(
   const args = { ...defaults, ...overrides };
 
   const tx = await contract.connect(trader).submitTrade(
+    trader.address,
     args.encryptedOrder,
     args.inputAmount,
     args.tokenIn,
@@ -100,6 +101,7 @@ describe("VerifiableTradeExecutor", function () {
       const { contract, trader, TRADE_ARGS } = await loadFixture(deployFixture);
 
       const tx = await contract.connect(trader).submitTrade(
+        trader.address,
         TRADE_ARGS.encryptedOrder,
         TRADE_ARGS.inputAmount,
         TRADE_ARGS.tokenIn,
@@ -117,11 +119,11 @@ describe("VerifiableTradeExecutor", function () {
       const { contract, trader, TRADE_ARGS } = await loadFixture(deployFixture);
 
       await contract.connect(trader).submitTrade(
-        TRADE_ARGS.encryptedOrder, TRADE_ARGS.inputAmount,
+        trader.address, TRADE_ARGS.encryptedOrder, TRADE_ARGS.inputAmount,
         TRADE_ARGS.tokenIn, TRADE_ARGS.tokenOut, TRADE_ARGS.maxSlippagePercent
       );
       await contract.connect(trader).submitTrade(
-        TRADE_ARGS.encryptedOrder, TRADE_ARGS.inputAmount,
+        trader.address, TRADE_ARGS.encryptedOrder, TRADE_ARGS.inputAmount,
         TRADE_ARGS.tokenIn, TRADE_ARGS.tokenOut, TRADE_ARGS.maxSlippagePercent
       );
 
@@ -148,7 +150,7 @@ describe("VerifiableTradeExecutor", function () {
       const { contract, trader, TRADE_ARGS } = await loadFixture(deployFixture);
       await expect(
         contract.connect(trader).submitTrade(
-          TRADE_ARGS.encryptedOrder, 0n, TRADE_ARGS.tokenIn, TRADE_ARGS.tokenOut, 50n
+          trader.address, TRADE_ARGS.encryptedOrder, 0n, TRADE_ARGS.tokenIn, TRADE_ARGS.tokenOut, 50n
         )
       ).to.be.revertedWithCustomError(contract, "ZeroInputAmount");
     });
@@ -157,7 +159,7 @@ describe("VerifiableTradeExecutor", function () {
       const { contract, trader, TRADE_ARGS } = await loadFixture(deployFixture);
       await expect(
         contract.connect(trader).submitTrade(
-          "", TRADE_ARGS.inputAmount, TRADE_ARGS.tokenIn, TRADE_ARGS.tokenOut, 50n
+          trader.address, "", TRADE_ARGS.inputAmount, TRADE_ARGS.tokenIn, TRADE_ARGS.tokenOut, 50n
         )
       ).to.be.revertedWithCustomError(contract, "EmptyOrderHash");
     });
@@ -166,7 +168,7 @@ describe("VerifiableTradeExecutor", function () {
       const { contract, trader, TRADE_ARGS } = await loadFixture(deployFixture);
       await expect(
         contract.connect(trader).submitTrade(
-          TRADE_ARGS.encryptedOrder, TRADE_ARGS.inputAmount, "", "WETH", 50n
+          trader.address, TRADE_ARGS.encryptedOrder, TRADE_ARGS.inputAmount, "", "WETH", 50n
         )
       ).to.be.revertedWithCustomError(contract, "EmptyTokenSymbol");
     });
@@ -175,7 +177,7 @@ describe("VerifiableTradeExecutor", function () {
       const { contract, trader, TRADE_ARGS } = await loadFixture(deployFixture);
       await expect(
         contract.connect(trader).submitTrade(
-          TRADE_ARGS.encryptedOrder, TRADE_ARGS.inputAmount,
+          trader.address, TRADE_ARGS.encryptedOrder, TRADE_ARGS.inputAmount,
           TRADE_ARGS.tokenIn, TRADE_ARGS.tokenOut, 10_001n
         )
       ).to.be.revertedWithCustomError(contract, "InvalidSlippage");
