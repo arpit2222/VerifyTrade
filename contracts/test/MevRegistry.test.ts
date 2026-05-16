@@ -366,5 +366,31 @@ describe("MevRegistry", function () {
         contract.connect(other).recordMevCheck(1n, trader.address, false, 0n, 0n, "method")
       ).to.be.revertedWithCustomError(contract, "UnauthorizedRecorder");
     });
+
+    it("allows owner to grant and revoke recorder role", async function () {
+      const { contract, owner, other } = await loadFixture(deployFixture);
+
+      await contract.connect(owner).setRecorder(other.address, true);
+      expect(await contract.authorizedRecorders(other.address)).to.be.true;
+
+      await contract.connect(owner).setRecorder(other.address, false);
+      expect(await contract.authorizedRecorders(other.address)).to.be.false;
+    });
+  });
+
+  // ── totalTradesSafe ──────────────────────────────────────────────────────────
+  describe("totalTradesSafe()", function () {
+    it("counts trades where MEV was not detected as safe", async function () {
+      const { contract, recorder, trader } = await loadFixture(deployFixture);
+
+      // 2 safe, 1 detected
+      await contract.connect(recorder).recordMevCheck(1n, trader.address, false, 0n, 0n, "commit-reveal");
+      await contract.connect(recorder).recordMevCheck(2n, trader.address, false, 0n, 0n, "commit-reveal");
+      await contract.connect(recorder).recordMevCheck(3n, trader.address, true, 1000n, 900n, "flashbots");
+
+      const [checks, detections] = await contract.getMevStats();
+      const safe = Number(checks) - Number(detections);
+      expect(safe).to.equal(2);
+    });
   });
 });
