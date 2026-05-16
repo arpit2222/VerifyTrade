@@ -151,21 +151,43 @@ export async function parseBody(req: Request): Promise<Record<string, unknown> |
 // CORS headers
 // ---------------------------------------------------------------------------
 
+// Allowlist of trusted origins — never default to wildcard in production
+const ALLOWED_ORIGINS = new Set(
+  (process.env.CORS_ORIGIN ?? "http://localhost:3000")
+    .split(",")
+    .map(o => o.trim())
+    .filter(Boolean)
+);
+
+function getAllowedOrigin(req?: Request): string {
+  const origin = req?.headers.get("origin") ?? "";
+  if (ALLOWED_ORIGINS.has(origin)) return origin;
+  // In development allow any localhost port
+  if (process.env.NODE_ENV === "development" && origin.startsWith("http://localhost")) return origin;
+  return ALLOWED_ORIGINS.values().next().value ?? "https://verifytrade.xyz";
+}
+
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin":  process.env.CORS_ORIGIN ?? "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Max-Age":       "86400",
 } as const;
 
-export function addCorsHeaders(response: NextResponse): NextResponse {
+export function addCorsHeaders(response: NextResponse, req?: Request): NextResponse {
   Object.entries(CORS_HEADERS).forEach(([k, v]) => response.headers.set(k, v));
+  response.headers.set("Access-Control-Allow-Origin", getAllowedOrigin(req));
   return response;
 }
 
 /** Handle pre-flight OPTIONS requests. */
-export function handleOptions(): NextResponse {
-  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+export function handleOptions(req?: Request): NextResponse {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      ...CORS_HEADERS,
+      "Access-Control-Allow-Origin": getAllowedOrigin(req),
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
