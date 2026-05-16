@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "check": "tsc --noEmit && next lint",
+    "audit": "npm audit --audit-level=high",
+    "clean": "rm -rf .next out"
   },
   "dependencies": {
     "@0gfoundation/0g-compute-ts-sdk": "^0.8.3",
