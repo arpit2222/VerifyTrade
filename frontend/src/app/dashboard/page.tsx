@@ -23,11 +23,15 @@ import { truncateMiddle }  from "@/lib/utils";
 // Recent trades — from session storage
 // ---------------------------------------------------------------------------
 
+const MAX_RECENT_TRADES = 20;
+
 function useRecentTradeIds(): string[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = sessionStorage.getItem("vt_recent_trades");
-    return raw ? (JSON.parse(raw) as string[]) : [];
+    const all = raw ? (JSON.parse(raw) as string[]) : [];
+    // Return most recent first, capped to avoid memory issues
+    return all.slice(-MAX_RECENT_TRADES).reverse();
   } catch {
     return [];
   }
