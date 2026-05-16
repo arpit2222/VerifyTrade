@@ -10,13 +10,23 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "VerifyTrade — Fair DeFi Execution",
   description:
-    "Cryptographically verified DeFi trade execution on Arbitrum, powered by 0G AI.",
-  keywords: ["DeFi", "blockchain", "trading", "0G", "Arbitrum", "TEE", "MEV"],
+    "Cryptographically verified DeFi trade execution on Arbitrum, powered by 0G AI. Every trade encrypted, TEE-executed, and proven on-chain.",
+  keywords: ["DeFi", "blockchain", "trading", "0G", "Arbitrum", "TEE", "MEV", "fairness proof", "crypto"],
   openGraph: {
-    title: "VerifyTrade",
-    description: "Fair DeFi trading with cryptographic proofs",
+    title: "VerifyTrade — Fair DeFi Execution",
+    description: "Every trade encrypted on 0G Storage, executed in a TEE via 0G Compute, and proven on-chain. MEV-proof DeFi.",
     type: "website",
+    siteName: "VerifyTrade",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "VerifyTrade — Fair DeFi Execution" }],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "VerifyTrade — Fair DeFi Execution",
+    description: "MEV-proof DeFi powered by 0G Storage, Compute, and on-chain fairness proofs.",
+    images: ["/og-image.png"],
+  },
+  robots: { index: true, follow: true },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://verifytrade.xyz"),
 };
 
 export default function RootLayout({
