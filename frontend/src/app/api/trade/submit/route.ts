@@ -13,6 +13,8 @@
  */
 
 import { NextResponse } from "next/server";
+
+export const maxDuration = 30;
 import {
   withMiddleware, successResponse, errorResponse, parseBody,
   requireFields, requirePositive, parseSlippage, sanitizeString,

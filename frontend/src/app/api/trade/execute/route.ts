@@ -29,6 +29,9 @@
  */
 
 import { NextResponse } from "next/server";
+
+// Serverless function timeout budget (Vercel default is 10s on hobby, 60s on pro)
+export const maxDuration = 60;
 import {
   withMiddleware,
   successResponse,

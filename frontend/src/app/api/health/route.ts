@@ -9,6 +9,8 @@
  */
 
 import { NextResponse } from "next/server";
+
+export const maxDuration = 20;
 import { ethers }       from "ethers";
 import {
   withMiddleware,
