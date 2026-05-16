@@ -8,8 +8,13 @@ import { defaultWagmiConfig } from "@web3modal/wagmi/react/config";
 // WalletConnect project ID — required for Web3Modal / AppKit
 // Get yours at: https://cloud.walletconnect.com
 // ---------------------------------------------------------------------------
-export const WALLETCONNECT_PROJECT_ID =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? "YOUR_PROJECT_ID";
+const _wcId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+if (!_wcId || _wcId === "YOUR_PROJECT_ID") {
+  if (typeof window !== "undefined") {
+    console.warn("[VerifyTrade] NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not set — wallet connection will fail. Get a project ID at https://cloud.walletconnect.com");
+  }
+}
+export const WALLETCONNECT_PROJECT_ID = _wcId ?? "00000000000000000000000000000000";
 
 // ---------------------------------------------------------------------------
 // Network configuration
