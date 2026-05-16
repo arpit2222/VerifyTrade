@@ -334,6 +334,34 @@ describe("VerifiableTradeExecutor", function () {
         contract.setExecutor(ethers.ZeroAddress, true)
       ).to.be.revertedWithCustomError(contract, "ZeroAddress");
     });
+
+    it("allows removing an executor", async function () {
+      const { contract, executor } = await loadFixture(deployFixture);
+
+      // executor is authorized in fixture
+      expect(await contract.authorizedExecutors(executor.address)).to.be.true;
+
+      await contract.setExecutor(executor.address, false);
+      expect(await contract.authorizedExecutors(executor.address)).to.be.false;
+    });
+  });
+
+  describe("Trade query", function () {
+    it("getTrade reverts for non-existent tradeId", async function () {
+      const { contract } = await loadFixture(deployFixture);
+      await expect(
+        contract.getTrade(9999n)
+      ).to.be.revertedWithCustomError(contract, "TradeNotFound");
+    });
+
+    it("getTrade returns correct inputAmount and tokenIn", async function () {
+      const { contract, trader, executor } = await loadFixture(deployFixture);
+
+      const id = await submitAndGetId(contract, trader, executor);
+      const trade = await contract.getTrade(id);
+      expect(trade.inputAmount).to.equal(ethers.parseUnits("100", 6)); // fixture default
+      expect(trade.tokenIn).to.equal("USDC");
+    });
   });
 });
 
