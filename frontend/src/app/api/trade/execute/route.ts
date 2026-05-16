@@ -40,6 +40,7 @@ import {
   requireFields,
   parseTradeId,
   sanitizeString,
+  checkRateLimit,
   ValidationError,
   handleOptions,
 } from "@/middleware/auth";
@@ -63,6 +64,10 @@ export async function OPTIONS() {
 
 export async function POST(req: Request): Promise<NextResponse> {
   return withMiddleware(req, async () => {
+    // ── 0. Rate limit ────────────────────────────────────────────────────────
+    const rl = checkRateLimit(req, 10, 60_000); // 10 executions/min per IP
+    if (rl) return rl;
+
     // ── 1. Parse & validate ──────────────────────────────────────────────────
     const body = await parseBody(req);
     if (!body) {

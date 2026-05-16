@@ -18,7 +18,7 @@ export const maxDuration = 30;
 import {
   withMiddleware, successResponse, errorResponse, parseBody,
   requireFields, requirePositive, parseSlippage, sanitizeString,
-  ValidationError, handleOptions,
+  checkRateLimit, ValidationError, handleOptions,
 } from "@/middleware/auth";
 import { uploadEncryptedOrder }  from "@/lib/0g-storage";
 import { appendTradeId }         from "@/lib/0g-kv";
@@ -30,6 +30,10 @@ export async function OPTIONS() { return handleOptions(); }
 
 export async function POST(req: Request): Promise<NextResponse> {
   return withMiddleware(req, async () => {
+    // ── 0. Rate limit ────────────────────────────────────────────────────────
+    const rl = checkRateLimit(req, 20, 60_000); // 20 submissions/min per IP
+    if (rl) return rl;
+
     // ── 1. Parse & validate ──────────────────────────────────────────────────
     const body = await parseBody(req);
     if (!body) throw new ValidationError("Request body must be valid JSON");

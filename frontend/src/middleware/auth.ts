@@ -152,6 +152,57 @@ export async function parseBody(req: Request): Promise<Record<string, unknown> |
 // ---------------------------------------------------------------------------
 
 // Allowlist of trusted origins — never default to wildcard in production
+// ---------------------------------------------------------------------------
+// In-memory rate limiter (per-IP, resets on cold start)
+// ---------------------------------------------------------------------------
+
+interface RateLimitBucket {
+  count:      number;
+  windowStart: number;
+}
+
+const rateLimitStore = new Map<string, RateLimitBucket>();
+
+/**
+ * Check whether the caller has exceeded the rate limit.
+ * Returns an error response if rate-limited, otherwise null.
+ *
+ * @param req         Incoming request (for IP extraction)
+ * @param limit       Max requests per window (default 30)
+ * @param windowMs    Window duration in ms (default 60 000 = 1 min)
+ */
+export function checkRateLimit(
+  req:      Request,
+  limit    = 30,
+  windowMs = 60_000
+): NextResponse | null {
+  const ip  = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+            ?? req.headers.get("x-real-ip")
+            ?? "unknown";
+  const now = Date.now();
+
+  const bucket = rateLimitStore.get(ip);
+  if (!bucket || now - bucket.windowStart > windowMs) {
+    rateLimitStore.set(ip, { count: 1, windowStart: now });
+    return null;
+  }
+
+  bucket.count += 1;
+  if (bucket.count > limit) {
+    const retryAfter = Math.ceil((bucket.windowStart + windowMs - now) / 1000);
+    const res = errorResponse(
+      `Rate limit exceeded — try again in ${retryAfter}s`,
+      "RATE_LIMITED",
+      429
+    );
+    res.headers.set("Retry-After", String(retryAfter));
+    return res;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+
 const ALLOWED_ORIGINS = new Set(
   (process.env.CORS_ORIGIN ?? "http://localhost:3000")
     .split(",")
