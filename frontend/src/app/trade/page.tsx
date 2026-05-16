@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Header } from "@/components/Header";
-import { TradeForm } from "@/components/TradeForm";
+import { Header }      from "@/components/Header";
+import { TradeForm }   from "@/components/TradeForm";
 import { TradeExecution } from "@/components/TradeExecution";
-import { MevStats } from "@/components/MevStats";
+import { MevStats }    from "@/components/MevStats";
+import { LivePrices }  from "@/components/LivePrices";
 
 interface PendingTrade {
   tradeId:     string;
@@ -74,8 +75,9 @@ export default function TradePage() {
             )}
           </div>
 
-          {/* Right column — MEV stats + how it works */}
+          {/* Right column — live prices, MEV stats + how it works */}
           <div className="space-y-6">
+            <LivePrices />
             <MevStats />
 
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 space-y-3">
