@@ -257,6 +257,52 @@ describe("FairnessProof", function () {
         contract.connect(other).recordProof(1n, "tee://meas", 50n, 30n, "enc://x")
       ).to.be.revertedWithCustomError(contract, "UnauthorizedProver");
     });
+
+    it("allows owner to grant and revoke prover role", async function () {
+      const { contract, owner, other } = await loadFixture(deployFixture);
+
+      // Grant
+      await contract.connect(owner).setProver(other.address, true);
+      expect(await contract.authorizedProvers(other.address)).to.be.true;
+
+      // Revoke
+      await contract.connect(owner).setProver(other.address, false);
+      expect(await contract.authorizedProvers(other.address)).to.be.false;
+    });
+
+    it("prevents non-owner from granting prover role", async function () {
+      const { contract, other, prover } = await loadFixture(deployFixture);
+      await expect(
+        contract.connect(other).setProver(prover.address, false)
+      ).to.be.reverted;
+    });
+  });
+
+  // ── Proof counter ────────────────────────────────────────────────────────────
+  describe("Proof counter", function () {
+    it("increments totalProofsRecorded with each new proof", async function () {
+      const { contract, prover } = await loadFixture(deployFixture);
+      const p = prover as unknown as Awaited<ReturnType<typeof ethers.getSigner>>;
+
+      const before = await contract.totalProofsRecorded();
+      await recordAndGetId(contract, p);
+      await recordAndGetId(contract, p, { tradeId: 2n });
+
+      expect(await contract.totalProofsRecorded()).to.equal(before + 2n);
+    });
+
+    it("increments totalFairProofs only for fair executions", async function () {
+      const { contract, prover } = await loadFixture(deployFixture);
+      const p = prover as unknown as Awaited<ReturnType<typeof ethers.getSigner>>;
+
+      // fair: actual(10) <= expected(50)
+      await recordAndGetId(contract, p, { tradeId: 1n, actualSlippagePercent: 10n });
+      // unfair: actual(999) > expected(50)
+      await recordAndGetId(contract, p, { tradeId: 2n, actualSlippagePercent: 999n });
+
+      expect(await contract.totalFairProofs()).to.equal(1n);
+      expect(await contract.totalProofsRecorded()).to.equal(2n);
+    });
   });
 });
 
