@@ -128,13 +128,15 @@ https://github.com/arpit2222/VerifyTrade
 ## Smart Contracts (Arbitrum Sepolia — Chain ID 421614)
 
 ```
-VerifiableTradeExecutor: [REPLACE WITH CONTRACT ADDRESS]
-FairnessProof:           [REPLACE WITH CONTRACT ADDRESS]
-MevRegistry:             [REPLACE WITH CONTRACT ADDRESS]
+VerifiableTradeExecutor: 0x5A926BB3844c23F44B7e9FBfa54B1f10D992a398
+FairnessProof:           0xE264c1313dD7ed52caf852b314d54cF95C29C531
+MevRegistry:             0x66900c6610461eaD6a3D30143C8d78352A2CF088
+VerifyTrade:             0x839A5bc96e61bb2D5c23C946E38Dacf13e13b0cB
 
 Network: Arbitrum Sepolia (testnet)
 Chain ID: 421614
 Explorer: https://sepolia.arbiscan.io
+Deployed: 2026-05-16 by 0x79601AC98F844aD09b485F739D3C478C5b131A10
 ```
 
 ---

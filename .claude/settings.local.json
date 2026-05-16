@@ -6,7 +6,24 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git branch *)",
-      "Bash(git remote *)"
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(npx hardhat *)",
+      "Bash(node_modules/.bin/hardhat compile *)",
+      "Bash(wait)",
+      "Bash(node -e \"const p=require\\('/Users/arpitchauhan/Desktop/verifytrade/frontend/node_modules/@web3modal/wagmi/package.json'\\); console.log\\(p.version, Object.keys\\(p.exports||{}\\).slice\\(0,8\\).join\\(', '\\)\\)\")",
+      "Bash(node -e \"const p=require\\('/Users/arpitchauhan/Desktop/verifytrade/node_modules/@web3modal/wagmi/package.json'\\); console.log\\('version:', p.version, '\\\\nexports:', Object.keys\\(p.exports||{}\\).slice\\(0,12\\).join\\(', '\\)\\)\")",
+      "Bash(node -e \"const p=require\\('/Users/arpitchauhan/Desktop/verifytrade/node_modules/wagmi/package.json'\\); console.log\\('wagmi version:', p.version\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(tree -L 2 -d /Users/arpitchauhan/Desktop/verifytrade --ignore node_modules)",
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(curl -s -X POST https://sepolia-rollup.arbitrum.io/rpc -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBalance\",\"params\":[\"0x79601AC98F844aD09b485F739D3C478C5b131A10\",\"latest\"],\"id\":1}')",
+      "Bash(python3 -c ' *)"
+    ],
+    "additionalDirectories": [
+      "/Users/arpitchauhan/Desktop/verifytrade/frontend/src/app/trade",
+      "/Users/arpitchauhan/Desktop/verifytrade/frontend/src/app/trade/[id]"
     ]
   }
 }

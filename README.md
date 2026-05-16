@@ -295,14 +295,15 @@ Browser → API Route → 0G Storage → Arbitrum
 
 ### Deployed Addresses (Arbitrum Sepolia)
 
-> ⚠️ Run `npm run deploy:testnet` to deploy and populate these addresses.
-> After deployment, addresses are saved to `deployments/arbitrum-sepolia.json`.
+> ✅ Deployed on May 16, 2026. Addresses are live on Arbitrum Sepolia.
+> Deployment artifact: `deployments/arbitrumSepolia-1778901113928.json`
 
 | Contract | Address | Arbiscan |
 |---------|---------|---------|
-| `VerifiableTradeExecutor` | `0x...` | [View →](https://sepolia.arbiscan.io/address/0x) |
-| `FairnessProof` | `0x...` | [View →](https://sepolia.arbiscan.io/address/0x) |
-| `MevRegistry` | `0x...` | [View →](https://sepolia.arbiscan.io/address/0x) |
+| `VerifiableTradeExecutor` | `0x5A926BB3844c23F44B7e9FBfa54B1f10D992a398` | [✅ Verified →](https://sepolia.arbiscan.io/address/0x5A926BB3844c23F44B7e9FBfa54B1f10D992a398#code) |
+| `FairnessProof` | `0xE264c1313dD7ed52caf852b314d54cF95C29C531` | [✅ Verified →](https://sepolia.arbiscan.io/address/0xE264c1313dD7ed52caf852b314d54cF95C29C531#code) |
+| `MevRegistry` | `0x66900c6610461eaD6a3D30143C8d78352A2CF088` | [✅ Verified →](https://sepolia.arbiscan.io/address/0x66900c6610461eaD6a3D30143C8d78352A2CF088#code) |
+| `VerifyTrade` | `0x839A5bc96e61bb2D5c23C946E38Dacf13e13b0cB` | [✅ Verified →](https://sepolia.arbiscan.io/address/0x839A5bc96e61bb2D5c23C946E38Dacf13e13b0cB#code) |
 
 ### Contract summaries
 
