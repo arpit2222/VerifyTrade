@@ -157,7 +157,10 @@ export function getProvider(chain: ChainTarget = "arbitrum"): ethers.JsonRpcProv
 }
 
 export function getExecutorSigner(chain: ChainTarget = "arbitrum"): ethers.Wallet {
-  const privateKey = process.env.EXECUTOR_PRIVATE_KEY ?? process.env.PRIVATE_KEY;
+  // On testnet all three keys are typically the same wallet
+  const privateKey = process.env.EXECUTOR_PRIVATE_KEY
+                  ?? process.env.PRIVATE_KEY
+                  ?? process.env.ZEROG_PRIVATE_KEY;
   if (!privateKey) throw new Error("EXECUTOR_PRIVATE_KEY not configured");
   return new ethers.Wallet(privateKey, getProvider(chain));
 }
