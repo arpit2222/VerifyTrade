@@ -147,8 +147,10 @@ export function getProvider(chain: ChainTarget = "arbitrum"): ethers.JsonRpcProv
     return _zgProvider;
   }
   if (!_provider) {
-    const rpcUrl = process.env.ARBITRUM_SEPOLIA_RPC_URL;
-    if (!rpcUrl) throw new Error("ARBITRUM_SEPOLIA_RPC_URL not configured");
+    // Fall back to the public Arbitrum Sepolia RPC if no custom key is configured.
+    // The public endpoint is rate-limited but sufficient for read operations.
+    const rpcUrl = process.env.ARBITRUM_SEPOLIA_RPC_URL
+                ?? "https://sepolia-rollup.arbitrum.io/rpc";
     _provider = new ethers.JsonRpcProvider(rpcUrl);
   }
   return _provider;

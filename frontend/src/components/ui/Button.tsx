@@ -63,10 +63,23 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
-    const Comp = asChild ? Slot : "button";
+    // When asChild=true, Radix Slot merges props into the single child element.
+    // Slot uses React.Children.only internally, so we must not wrap children
+    // with leftIcon/rightIcon/loading nodes — pass children through as-is.
+    if (asChild) {
+      return (
+        <Slot
+          ref={ref}
+          className={cn(buttonVariants({ variant, size }), className)}
+          {...props}
+        >
+          {children}
+        </Slot>
+      );
+    }
 
     return (
-      <Comp
+      <button
         ref={ref}
         className={cn(buttonVariants({ variant, size }), className)}
         disabled={disabled ?? loading}
@@ -80,7 +93,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         {children}
         {!loading && rightIcon}
-      </Comp>
+      </button>
     );
   }
 );

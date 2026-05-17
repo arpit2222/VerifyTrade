@@ -56,7 +56,7 @@ export function MevStats() {
         ) : isError ? (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <WifiOff className="h-8 w-8 text-zinc-600" aria-hidden />
-            <p className="text-sm text-zinc-500">Stats unavailable — contracts may not be deployed yet</p>
+            <p className="text-sm text-zinc-500">Stats unavailable — RPC may be unreachable</p>
           </div>
         ) : data ? (
           <StatsContent data={data} />
