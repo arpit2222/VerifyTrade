@@ -41,9 +41,16 @@ const nextConfig = {
         "pino-pretty": false,
         lokijs: false,
         encoding: false,
-        "@react-native-async-storage/async-storage": false,
       };
     }
+
+    // Alias react-native module for both server and client bundles.
+    // MetaMask SDK pulls in @react-native-async-storage during SSR even
+    // though it's only used in client components — stub it out everywhere.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@react-native-async-storage/async-storage": false,
+    };
 
     // Suppress "Critical dependency" warnings from WalletConnect internals
     config.externals.push("pino-pretty", "lokijs", "encoding");
