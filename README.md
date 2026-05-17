@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ VerifyTrade
+# VerifyTrade
 
 ### Fair DeFi Trading with Cryptographic Proofs
 
@@ -11,466 +11,241 @@
 [![Built with 0G](https://img.shields.io/badge/Built%20with-0G%20Network-purple.svg)](https://0g.ai)
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js%2014-black.svg)](https://nextjs.org)
 [![Solidity](https://img.shields.io/badge/Contracts-Solidity%200.8.24-363636.svg)](https://soliditylang.org)
+[![Tests](https://img.shields.io/badge/Tests-84%20passing-green.svg)](#testing)
 
-**[Live Demo](https://verifytrade.vercel.app)** · **[Demo Video](https://youtube.com/watch?v=PLACEHOLDER)** · **[GitHub](https://github.com/arpit2222/VerifyTrade)**
+**[Live Demo](https://verifytrade.vercel.app)** · **[GitHub](https://github.com/arpit2222/VerifyTrade)**
 
 </div>
 
 ---
 
-## 📋 Table of Contents
+## What We Built
 
-- [Problem Statement](#-problem-statement)
-- [Solution Overview](#-solution-overview)
-- [How It Works](#-how-it-works)
-- [Features](#-features)
-- [0G Integration](#-0g-integration)
-- [Tech Stack](#-tech-stack)
-- [Architecture](#-architecture)
-- [Smart Contracts](#-smart-contracts)
-- [API Documentation](#-api-documentation)
-- [Quick Start](#-quick-start)
-- [Testing Guide](#-testing-guide)
-- [Deployment](#-deployment)
-- [Future Roadmap](#-future-roadmap)
-- [Team](#-team)
-- [License](#-license)
+VerifyTrade is a **MEV-protected DeFi trading platform** built for the 0G APAC Hackathon 2026. It solves the front-running and sandwich attack problem that costs DeFi traders over $1.2 billion per year — using 0G's full AI stack: Storage, Compute (TEE), KV Store, and on-chain Agentic Identity.
 
----
-
-## 🔥 Problem Statement
-
-**MEV (Maximal Extractable Value) attacks cost DeFi traders over $1.2 billion per year.**
-
-When you submit a trade on a public blockchain, your transaction sits in the mempool — visible to the entire world — before it's included in a block. Sophisticated bots:
-
-- 🤖 **Front-run** your trade by submitting higher-gas transactions before yours
-- 🥪 **Sandwich** you by buying before and selling immediately after your transaction
-- 📉 **Manipulate** price oracles to guarantee worse fills on your order
-
-For retail traders this means consistently worse prices. For institutions managing large positions it means **millions of dollars lost on every trade** — and zero way to prove it happened.
-
----
-
-## 💡 Solution Overview
-
-VerifyTrade makes every trade **provably fair** using a three-layer approach:
+Every trade goes through four steps:
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    YOUR ORDER                        │
-│          AES-256 Encrypted before submission         │
-└──────────────────────┬──────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│                  0G STORAGE                          │
-│     Encrypted order stored — never visible           │
-│          on-chain before execution                   │
-└──────────────────────┬──────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│           TRUSTED EXECUTION ENVIRONMENT              │
-│     Order decrypted and executed inside a            │
-│     hardware-secured enclave (0G Compute)            │
-│     No MEV bot can see the trade before execution    │
-└──────────────────────┬──────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│             ON-CHAIN FAIRNESS PROOF                  │
-│     Cryptographic attestation recorded on            │
-│     Arbitrum — anyone can verify your trade          │
-│     was executed at the quoted price                 │
-└─────────────────────────────────────────────────────┘
+1. ENCRYPT    Your order is AES-256-GCM encrypted in the browser
+      ↓
+2. STORE      Encrypted order uploaded to 0G Storage (Galileo testnet)
+      ↓
+3. EXECUTE    0G Compute TEE decrypts and executes inside a hardware enclave
+      ↓
+4. PROVE      Fairness attestation written permanently to Arbitrum Sepolia
 ```
 
-The result: **institutional-grade execution with retail accessibility** — every trade comes with a blockchain-verifiable proof that slippage was within agreed limits.
+MEV bots cannot see your order before it executes. Every trade comes with a **blockchain-verifiable fairness proof** that anyone can check at `/verify`.
 
 ---
 
-## ⚙️ How It Works
+## 0G Integrations
 
-### Step-by-step flow
+All four 0G network components are integrated with real SDK calls and graceful fallbacks:
 
-```
-Trader                0G Storage           TEE Enclave          Arbitrum
-  │                       │                     │                    │
-  │── Encrypt order ──────►                     │                    │
-  │   (AES-256-GCM)        │                    │                    │
-  │◄─ CID returned ────────│                    │                    │
-  │                        │                    │                    │
-  │── submitTrade() ───────────────────────────────────────────────►│
-  │   (on-chain: CID,      │                    │                    │
-  │    tokenIn/Out,        │                    │                    │
-  │    maxSlippage)        │                    │                    │
-  │◄─ tradeId ─────────────────────────────────────────────────────│
-  │                        │                    │                    │
-  │── executeTrade() ──────────────────────────►                    │
-  │   (tradeId + CID)      │                    │                    │
-  │                        │◄── fetch order ────│                    │
-  │                        │─── encrypted ─────►│                    │
-  │                        │                    │── decrypt ─────    │
-  │                        │                    │── execute trade    │
-  │                        │                    │── compute proof    │
-  │                        │                    │                    │
-  │                        │                    │── recordResult ───►│
-  │                        │                    │── recordProof ────►│
-  │                        │                    │── recordMev ──────►│
-  │◄─ fairness proof ──────────────────────────────────────────────│
-```
-
-### Key invariants
-
-| Invariant | How it's enforced |
-|-----------|-------------------|
-| Order privacy | Encrypted before leaving browser; only TEE can decrypt |
-| Slippage guarantee | TEE checks `actualSlippage ≤ maxSlippage` before settling |
-| Immutability | All results written on Arbitrum; content-addressed on 0G |
-| Verifiability | Anyone can call `verifyAttestation(tradeId, hash)` on-chain |
-
----
-
-## ✨ Features
-
-### Core
-- 🔒 **AES-256-GCM order encryption** — orders are encrypted in the browser before any network call
-- 📦 **0G Storage integration** — encrypted orders pinned with content-addressed CIDs
-- 🖥️ **TEE execution** — orders execute inside 0G Compute's hardware enclaves
-- ✅ **On-chain fairness proofs** — `FairnessProof.sol` records every attestation permanently
-- 🛡️ **MEV registry** — `MevRegistry.sol` logs every MEV check with savings estimates
-
-### Frontend
-- 📊 **Live MEV stats dashboard** — auto-refreshing KPIs with recharts visualisations
-- 🔄 **Real-time trade status** — polls every 10 s, stops when trade is finalised
-- 🦊 **Multi-wallet support** — MetaMask, Coinbase Wallet, WalletConnect, 300+ wallets
-- 🌐 **Wrong-network detection** — one-click switch to Arbitrum Sepolia
-- 📋 **Copy-to-clipboard** — attestation hashes and TEE measurements
-- 🔗 **Arbiscan deep links** — every transaction linkable
-
-### Developer
-- 🧪 **72 automated tests** — unit tests for all three contracts
-- 🔧 **Mock mode** — full local dev without 0G credentials
-- 📝 **Complete API docs** — 5 endpoints with request/response schemas
-- 🏗️ **TypeScript strict** — zero `any` in business logic, zero `tsc` errors
-
----
-
-## 🟣 0G Integration
-
-VerifyTrade integrates all three pillars of the 0G ecosystem:
-
-### 1. 0G Storage — Order Privacy
+### 0G Storage — Order Privacy
+Encrypted trade orders are uploaded to 0G Storage before the on-chain `submitTrade()` call. The content-addressed CID is the only thing recorded on Arbitrum — order details are never exposed on-chain before execution.
 
 ```typescript
 // frontend/src/lib/0g-storage.ts
-const payload = encryptOrder(JSON.stringify(orderData));   // AES-256-GCM
-const result  = await uploadEncryptedOrder(payload);        // → 0G Storage
-// Returns a content-addressable CID stored on-chain
+const encrypted = encryptOrder(JSON.stringify(order)); // AES-256-GCM
+const { cid }   = await uploadEncryptedOrder(encrypted); // → 0G Storage Galileo
 ```
 
-Encrypted trade orders are uploaded to 0G Storage before the on-chain `submitTrade()` call. The CID is the only thing recorded on Arbitrum — **the order details are never on-chain** until after execution.
-
-### 2. 0G Compute — TEE Execution
+### 0G Compute — TEE Execution + Price Oracle
+0G Compute serves two roles: executing trades inside TEE hardware enclaves, and providing live token prices via AI inference (used in the `/api/prices` endpoint and the `LivePrices` dashboard widget).
 
 ```typescript
 // frontend/src/lib/0g-compute.ts
-const result = await executeTradeInTEE({
-  tradeId, encryptedOrder, tokenIn, tokenOut,
-  inputAmount, maxSlippageBps,
-});
-// Returns: outputAmount, actualSlippage, teeMeasurement, attestation
+const result = await executeTradeInTEE({ tradeId, orderCID, tokenIn, tokenOut, inputAmount });
+// → { outputAmount, slippage, teeMeasurement, attestation, executorId }
+
+const prices = await fetchLivePrices(["ETH", "WBTC", "ARB", "USDC"]);
+// → { ETH: 3420, WBTC: 98000, ... } via 0G Compute AI inference
 ```
 
-The 0G Compute node fetches the encrypted order from 0G Storage, decrypts it inside the TEE hardware enclave, executes the swap against live prices, and generates a cryptographically signed attestation. **MEV bots cannot see the order** until the block is already settled.
+### 0G KV Store — Trade Index
+Trade IDs are appended to a 0G KV stream keyed by trader address, enabling efficient per-wallet history lookups without scanning on-chain events.
 
-### 3. On-chain Settlement — Arbitrum
-
-```solidity
-// Fairness proof recorded permanently
-fairnessProof.recordProof(
-    tradeId,
-    teeMeasurement,      // TEE enclave identity hash
-    maxSlippagePct,
-    actualSlippagePct,
-    executorAddress
-);
+```typescript
+// frontend/src/lib/0g-kv.ts
+await appendTradeId(traderAddress, tradeId); // indexed by SHA-256 stream ID
 ```
 
-All results — output amounts, actual slippage, TEE measurement, and fairness verdict — are recorded on Arbitrum Sepolia. This creates a **public, tamper-proof audit trail** for every trade.
+### 0G Agentic Identity — ERC-7857
+VerifyTrade's executor carries a verifiable on-chain identity via ERC-7857 (Token #101 on 0G Galileo). Every trade attestation is tagged with the agent's execution signature. The `/agent` page shows live agent status, capabilities, and authorization model.
 
-### Mock mode (development)
-
-When `ZEROG_STORAGE_NODE` and `ZEROG_COMPUTE_NODE` are not set, the system automatically uses in-memory mock implementations that simulate realistic latency, slippage, and MEV detection. This lets you run the full app locally with zero credentials.
+```typescript
+// frontend/src/lib/0g-agentic-id.ts
+const info  = await getAgentInfo();    // ERC-7857 token metadata
+const alive = await isAgentAlive();    // on-chain liveness check
+await authorizeTrader(traderAddress);  // grant trade allowance
+```
 
 ---
 
-## 🛠️ Tech Stack
+## Features
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| **Smart contracts** | Solidity 0.8.24 | Trade ledger, fairness proofs, MEV registry |
-| **Contract framework** | Hardhat + OpenZeppelin 5 | Testing, deployment, standards |
-| **Frontend** | Next.js 14 (App Router) | SSR, routing, API routes |
-| **Styling** | Tailwind CSS | Utility-first dark UI |
-| **UI components** | Radix UI primitives | Accessible, unstyled primitives |
-| **Charts** | Recharts | AreaChart + PieChart for MEV stats |
-| **Wallet** | wagmi v2 + viem | Wallet state, transaction sending |
-| **Web3Modal** | @web3modal/wagmi v5 | Multi-wallet connect UI |
-| **Server state** | @tanstack/react-query v5 | Queries, mutations, caching |
-| **Encryption** | Node.js crypto (AES-256-GCM) | Order privacy |
-| **Storage** | 0G Storage (Newton testnet) | Encrypted order persistence |
-| **Compute / TEE** | 0G Compute | Secure trade execution |
-| **Blockchain** | Arbitrum Sepolia | Low-cost proof settlement |
-| **Language** | TypeScript (strict) | End-to-end type safety |
-| **Package manager** | npm workspaces | Monorepo (`contracts`, `frontend`, `packages/shared`) |
+### Core Trading
+- **AES-256-GCM order encryption** — orders encrypted in-browser before any network call
+- **0G Storage upload** — content-addressed CID returned before on-chain submission
+- **TEE execution** — 0G Compute hardware enclave, no MEV exposure
+- **Counterfactual fairness analysis** — shows what slippage would have been without VerifyTrade
+- **On-chain fairness proofs** — `FairnessProof.sol` records every attestation permanently
+- **MEV registry** — `MevRegistry.sol` logs every MEV check with USD savings estimates
+
+### Frontend Pages
+| Page | Description |
+|------|-------------|
+| `/trade` | Trade form with live prices sidebar, MEV stats, how-it-works |
+| `/verify` | Verify any trade proof by ID, shareable URL (`?id=42`) |
+| `/dashboard` | Real-time MEV stats, 0G network status, live prices, recent trades |
+| `/agent` | ERC-7857 agent detail — capabilities, auth model, Galileo explorer links |
+
+### API Routes
+| Route | Description |
+|-------|-------------|
+| `POST /api/trade/submit` | Encrypt → 0G Storage → on-chain submit |
+| `POST /api/trade/execute` | TEE execution → fairness proof → MEV record |
+| `GET /api/trade/[id]` | Full trade details from contracts |
+| `GET /api/stats/mev` | Global MEV stats, 30s cache |
+| `GET /api/prices` | Live prices from 0G Compute AI, 60s cache |
+| `GET /api/agent` | ERC-7857 agent metadata, 5min cache |
+| `GET /api/health` | Full system health — RPC, 0G, contracts, 15s cache |
+
+### Security & Reliability
+- Per-IP rate limiting (20 req/min submit, 10 req/min execute)
+- CORS origin allowlist (no wildcard `*` in production)
+- Public Arbitrum Sepolia RPC fallback when no custom key configured
+- All `console.log/warn` guarded by `NODE_ENV !== production`
+- Graceful mock fallback for all 0G services when testnet unreachable
+
+### Developer Experience
+- **84 automated contract tests** — all passing
+- TypeScript strict mode, zero `tsc` errors
+- Loading skeletons for all pages
+- Custom 404 and global error boundary
+- robots.txt, sitemap.xml, OpenGraph metadata
 
 ---
 
-## 🏗️ Architecture
+## Smart Contracts
+
+### Deployed — Arbitrum Sepolia (Chain ID 421614)
+
+| Contract | Address |
+|----------|---------|
+| `VerifiableTradeExecutor` | `0xe7C677376dB8ad746dc9Ef0f55aB8cF545ebd21F` |
+| `FairnessProof` | `0xB1D61252D7D20974de42097ad10C93040cb5d15D` |
+| `MevRegistry` | `0x9Bb73F6B36Cf763285fdc919Da541Da45D73FAEB` |
+| `VerifyTrade` | `0xd6947eDcaA5A2C259d3B66D3274ca20CfDc2939f` |
+
+### Deployed — 0G Galileo Testnet (Chain ID 16602)
+
+| Contract | Address |
+|----------|---------|
+| `VerifiableTradeExecutor` | `0xaEAD54C9251D14113f9d71Fee95183751a6F8bd1` |
+| `FairnessProof` | `0x1B1aB51446fCEcBFF632FFCec769C55504E50a02` |
+| `MevRegistry` | `0xdaa0675bf1592FE3A0a822b0194bA2b9e9BFfB92` |
+| `VerifyTrade` | `0x08d3c771E9f1C527f9a6798148953F1C898Ee1a5` |
+
+### ERC-7857 Agentic ID (0G Galileo)
+
+| Item | Value |
+|------|-------|
+| Contract | `0x2700F6A3e505402C9daB154C5c6ab9cAEC98EF1F` |
+| Token ID | `#101` |
+| Standard | ERC-7857 On-chain AI Agent Identity |
+
+---
+
+## Architecture
 
 ```
 verifytrade/
-├── contracts/                    # Hardhat workspace
+├── contracts/                         # Hardhat workspace
 │   ├── src/
-│   │   ├── VerifiableTradeExecutor.sol   # Trade ledger
+│   │   ├── VerifiableTradeExecutor.sol   # Trade ledger + attestation
 │   │   ├── FairnessProof.sol             # TEE attestation registry
-│   │   ├── MevRegistry.sol               # MEV event log
+│   │   ├── MevRegistry.sol               # MEV event log + savings
 │   │   └── mocks/MockERC20.sol           # Test token
-│   ├── test/                             # 72 tests
-│   └── scripts/deploy.ts                # Multi-contract deployer
+│   ├── test/                             # 84 tests across 4 suites
+│   └── scripts/deploy.ts                # Multi-network deployer
 │
-├── frontend/                     # Next.js 14 workspace
+├── frontend/                          # Next.js 14 App Router workspace
 │   └── src/
-│       ├── app/                          # App Router pages
-│       │   ├── trade/page.tsx            # Main trade UI
-│       │   ├── trade/[id]/page.tsx       # Trade detail
-│       │   ├── dashboard/page.tsx        # MEV dashboard
-│       │   ├── verify/page.tsx           # Proof verifier
-│       │   └── api/                      # Route handlers
+│       ├── app/
+│       │   ├── trade/page.tsx            # Trade form + execution
+│       │   ├── verify/page.tsx           # Proof verifier + share link
+│       │   ├── dashboard/page.tsx        # Stats + 0G status + prices
+│       │   ├── agent/page.tsx            # ERC-7857 agent detail
+│       │   ├── not-found.tsx             # Custom 404
+│       │   ├── error.tsx                 # Global error boundary
+│       │   └── api/
 │       │       ├── trade/submit/         # POST — encrypt & store
 │       │       ├── trade/execute/        # POST — TEE execution
 │       │       ├── trade/[tradeId]/      # GET — trade detail
 │       │       ├── stats/mev/            # GET — global stats
+│       │       ├── prices/               # GET — 0G Compute prices
+│       │       ├── agent/                # GET — ERC-7857 agent info
 │       │       └── health/               # GET — system health
-│       ├── components/                   # React components
-│       │   ├── TradeForm.tsx             # Order submission form
+│       ├── components/
+│       │   ├── TradeForm.tsx             # Order form with validation
 │       │   ├── TradeExecution.tsx        # TEE execution flow
-│       │   ├── TradeStatus.tsx           # Live trade tracking
-│       │   ├── MevStats.tsx              # Stats dashboard
+│       │   ├── TradeStatus.tsx           # Live trade tracker
+│       │   ├── FairnessComparison.tsx    # Counterfactual MEV analysis
+│       │   ├── MevStats.tsx              # Stats dashboard + charts
+│       │   ├── ZeroGStatus.tsx           # 0G network health panel
+│       │   ├── AgentCard.tsx             # ERC-7857 agent summary
+│       │   ├── LivePrices.tsx            # 0G Compute price oracle
+│       │   ├── CompliancePDF.tsx         # Trade proof PDF export
 │       │   ├── Header.tsx                # Nav + wallet connect
-│       │   ├── WalletProvider.tsx        # wagmi + Web3Modal
-│       │   └── ui/                       # Button, Card, Input, Select
+│       │   ├── Footer.tsx                # Links + attribution
+│       │   └── ui/                       # Button, Card, Input, Select, Toast
 │       ├── hooks/useTrade.ts             # React Query hooks
+│       ├── middleware/auth.ts            # CORS, rate limiting, validation
 │       └── lib/
-│           ├── wagmi-config.ts           # Chain + wallet config
-│           ├── api-client.ts             # Typed fetch wrapper
+│           ├── 0g-storage.ts             # 0G Storage SDK (+ mock)
+│           ├── 0g-compute.ts             # 0G Compute SDK / TEE (+ mock)
+│           ├── 0g-kv.ts                  # 0G KV Store SDK (+ mock)
+│           ├── 0g-agentic-id.ts          # ERC-7857 agent SDK
 │           ├── contracts.ts              # ethers.js contract layer
-│           ├── 0g-storage.ts             # 0G Storage (+ mock)
-│           ├── 0g-compute.ts             # 0G Compute / TEE (+ mock)
+│           ├── api-client.ts             # Typed fetch wrapper
 │           ├── encryption.ts             # AES-256-GCM utilities
+│           ├── env.ts                    # Env validation
 │           └── types.ts                  # Canonical TypeScript types
 │
-└── packages/shared/              # Shared types & utilities
-    └── src/
-        ├── types.ts
-        ├── constants.ts
-        └── utils.ts
-```
-
-### Data flow (production)
-
-```
-Browser → API Route → 0G Storage → Arbitrum
-                   ↓
-              0G Compute (TEE)
-                   ↓
-              Arbitrum (FairnessProof + MevRegistry)
+└── packages/shared/                   # Shared types & utilities
 ```
 
 ---
 
-## 📄 Smart Contracts
+## Tech Stack
 
-### Deployed Addresses (Arbitrum Sepolia)
-
-> ✅ Deployed on May 16, 2026. Addresses are live on Arbitrum Sepolia.
-> Deployment artifact: `deployments/arbitrumSepolia-1778901113928.json`
-
-| Contract | Address | Arbiscan |
-|---------|---------|---------|
-| `VerifiableTradeExecutor` | `0x5A926BB3844c23F44B7e9FBfa54B1f10D992a398` | [✅ Verified →](https://sepolia.arbiscan.io/address/0x5A926BB3844c23F44B7e9FBfa54B1f10D992a398#code) |
-| `FairnessProof` | `0xE264c1313dD7ed52caf852b314d54cF95C29C531` | [✅ Verified →](https://sepolia.arbiscan.io/address/0xE264c1313dD7ed52caf852b314d54cF95C29C531#code) |
-| `MevRegistry` | `0x66900c6610461eaD6a3D30143C8d78352A2CF088` | [✅ Verified →](https://sepolia.arbiscan.io/address/0x66900c6610461eaD6a3D30143C8d78352A2CF088#code) |
-| `VerifyTrade` | `0x839A5bc96e61bb2D5c23C946E38Dacf13e13b0cB` | [✅ Verified →](https://sepolia.arbiscan.io/address/0x839A5bc96e61bb2D5c23C946E38Dacf13e13b0cB#code) |
-
-### Contract summaries
-
-#### VerifiableTradeExecutor.sol
-
-The core trade ledger. Stores every order with its encrypted CID and settles results.
-
-```solidity
-// Submit an order — anyone can call
-function submitTrade(
-    string calldata encryptedOrder,  // 0G Storage CID
-    uint256 inputAmount,
-    string calldata tokenIn,
-    string calldata tokenOut,
-    uint256 maxSlippagePercent       // e.g. 50 = 0.50%
-) external returns (uint256 tradeId);
-
-// Record execution result — executor only
-function recordTradeResult(
-    uint256 tradeId,
-    uint256 outputAmount,
-    string calldata attestationHash,
-    uint256 actualSlippagePercent,
-    string calldata executionDetails
-) external onlyExecutor returns (bool);
-
-// Public verification — callable by anyone
-function verifyAttestation(
-    uint256 tradeId,
-    string calldata expectedHash
-) external view returns (bool matches);
-```
-
-#### FairnessProof.sol
-
-TEE attestation registry — records whether each trade executed within agreed slippage.
-
-```solidity
-function recordProof(
-    uint256 tradeId,
-    string calldata teeMeasurement,       // TEE enclave identity
-    uint256 expectedSlippagePercent,
-    uint256 actualSlippagePercent,
-    string calldata executorAddress
-) external onlyProver returns (uint256 proofId);
-
-// Returns true if actualSlippage <= expectedSlippage
-function isTradeFair(uint256 proofId) external view returns (bool);
-
-// Platform-wide fairness ratio in basis points
-function globalFairnessRatioBps() external view returns (uint256);
-```
-
-#### MevRegistry.sol
-
-MEV event log with per-trader savings tracking.
-
-```solidity
-function recordMevCheck(
-    uint256 tradeId,
-    address trader,
-    bool mevDetected,
-    uint256 mevAmount,           // USD × 1e6
-    uint256 protectionSavings,   // USD × 1e6
-    string calldata protectionMethod
-) external onlyRecorder returns (uint256 checkId);
-
-function getMevStats() external view returns (
-    uint256 checks,
-    uint256 detections,
-    uint256 savingsUsd6,
-    uint256 detectionRate        // basis points
-);
-```
+| Layer | Technology |
+|-------|-----------|
+| Smart contracts | Solidity 0.8.24 + OpenZeppelin 5 |
+| Contract framework | Hardhat + ethers.js |
+| Frontend | Next.js 14 (App Router) |
+| Styling | Tailwind CSS |
+| UI components | Radix UI primitives |
+| Charts | Recharts |
+| Wallet | wagmi v2 + viem + Web3Modal |
+| Server state | TanStack React Query v5 |
+| Encryption | Node.js crypto (AES-256-GCM) |
+| 0G Storage | `@0gfoundation/0g-storage-ts-sdk` v1.2.9 |
+| 0G Compute | `@0gfoundation/0g-compute-ts-sdk` v0.8.3 |
+| Blockchain | Arbitrum Sepolia + 0G Galileo |
+| Language | TypeScript (strict mode) |
+| Package manager | npm workspaces (monorepo) |
 
 ---
 
-## 📡 API Documentation
-
-Base URL: `http://localhost:3000` (dev) or your deployed URL.
-
-All responses use the envelope:
-```json
-{ "success": true, "data": { ... } }
-{ "success": false, "error": "message", "code": "ERROR_CODE" }
-```
-
-### `POST /api/trade/submit`
-
-Encrypt order → upload to 0G Storage → submit on-chain.
-
-```bash
-curl -X POST http://localhost:3000/api/trade/submit \
-  -H "Content-Type: application/json" \
-  -d '{"inputAmount":"1000000000","tokenIn":"USDC","tokenOut":"WETH","maxSlippage":0.5}'
-```
-
-```json
-{
-  "success": true,
-  "data": {
-    "tradeId": "42",
-    "orderCID": "bafkreihdwdcefgh...",
-    "txHash": "0xabc123...",
-    "status": "committed"
-  }
-}
-```
-
-### `POST /api/trade/execute`
-
-Execute inside TEE → record result on-chain.
-
-```bash
-curl -X POST http://localhost:3000/api/trade/execute \
-  -H "Content-Type: application/json" \
-  -d '{"tradeId":"42","orderCID":"bafkreihdwdcefgh..."}'
-```
-
-```json
-{
-  "success": true,
-  "data": {
-    "tradeId": "42",
-    "outputAmount": "499800000000000000",
-    "slippage": 0.04,
-    "proof": "fairness_verified",
-    "proofId": "17",
-    "attestation": "0xdeadbeef...",
-    "txHash": "0xabc456..."
-  }
-}
-```
-
-### `GET /api/trade/:tradeId`
-
-Full trade details including proof and MEV status.
-
-```bash
-curl http://localhost:3000/api/trade/42
-```
-
-### `GET /api/stats/mev`
-
-Global MEV protection stats (30 s cache).
-
-```bash
-curl http://localhost:3000/api/stats/mev
-```
-
-### `GET /api/health`
-
-System health — RPC, contracts, 0G Storage.
-
-```bash
-curl http://localhost:3000/api/health
-```
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-
-- **Node.js 18+**
+- Node.js 18+
 - A funded Arbitrum Sepolia wallet ([get testnet ETH](https://faucet.triangleplatform.com/arbitrum/sepolia))
-- A [WalletConnect Cloud](https://cloud.walletconnect.com) project ID (free)
 
 ```bash
 # 1. Clone
@@ -481,105 +256,89 @@ npm install
 
 # 3. Configure environment
 cp .env.example .env
-# Edit .env: add PRIVATE_KEY, ARBITRUM_SEPOLIA_RPC_URL, NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID, ENCRYPTION_KEY
+# Fill in: PRIVATE_KEY, ZEROG_PRIVATE_KEY, NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+# ARBITRUM_SEPOLIA_RPC_URL is optional — falls back to public RPC automatically
 
-# 4. Compile & test contracts
-npm run compile
-npm run test:contracts      # 72 tests should pass
+# 4. Deploy contracts (already deployed on testnet — skip if using existing addresses)
+npm run deploy:testnet    # writes addresses to frontend/.env.local
 
-# 5. Deploy to Arbitrum Sepolia
-npm run deploy:testnet      # writes addresses to frontend/.env.local
-
-# 6. Start frontend
-npm run dev                 # → http://localhost:3000
+# 5. Start frontend + API
+npm run dev               # → http://localhost:3000
 ```
 
-> 💡 **No 0G credentials?** The app auto-switches to mock mode — you'll see realistic simulated results with no extra setup.
+> **No 0G credentials?** The app auto-switches to mock mode. All UI works with simulated data.
 
 ---
 
-## 🧪 Testing Guide
+## Testing
 
 ```bash
-# All contract tests
+# All contract tests (84 passing)
 cd contracts && npx hardhat test
 
 # Specific suites
 npx hardhat test --grep "VerifiableTradeExecutor"
 npx hardhat test --grep "FairnessProof"
 npx hardhat test --grep "MevRegistry"
+npx hardhat test --grep "VerifyTrade"
 
-# Coverage
-npx hardhat coverage
-```
+# Frontend build check
+cd frontend && npm run build
 
-```bash
-# API smoke tests (dev server must be running)
-curl http://localhost:3000/api/health | jq .data.status
-curl -X POST http://localhost:3000/api/trade/submit \
-     -H "Content-Type: application/json" \
-     -d '{"inputAmount":"1000000","tokenIn":"USDC","tokenOut":"WETH","maxSlippage":0.5}' | jq
+# API smoke tests (dev server running)
+curl http://localhost:3000/api/health | jq .
+curl http://localhost:3000/api/stats/mev | jq .
+curl http://localhost:3000/api/prices | jq .
+curl http://localhost:3000/api/agent | jq .
 ```
 
 ---
 
-## 🌐 Deployment
-
-### Vercel
+## Deployment (Vercel)
 
 ```bash
-cd frontend
-vercel --prod
+cd frontend && vercel --prod
 
-# Set env vars
-vercel env add NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID production
-vercel env add NEXT_PUBLIC_VERIFIABLE_TRADE_EXECUTOR_ADDRESS production
-vercel env add NEXT_PUBLIC_FAIRNESS_PROOF_ADDRESS production
-vercel env add NEXT_PUBLIC_MEV_REGISTRY_ADDRESS production
-vercel env add ENCRYPTION_KEY production
-vercel env add EXECUTOR_PRIVATE_KEY production
-vercel env add ARBITRUM_SEPOLIA_RPC_URL production
+# Required env vars on Vercel:
+# NEXT_PUBLIC_VERIFIABLE_TRADE_EXECUTOR_ADDRESS
+# NEXT_PUBLIC_FAIRNESS_PROOF_ADDRESS
+# NEXT_PUBLIC_MEV_REGISTRY_ADDRESS
+# NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+# ENCRYPTION_KEY
+# ZEROG_PRIVATE_KEY       (or EXECUTOR_PRIVATE_KEY)
+# ARBITRUM_SEPOLIA_RPC_URL (optional — public fallback available)
+# NEXT_PUBLIC_APP_URL     (your Vercel domain)
+# CORS_ORIGIN             (your Vercel domain)
 ```
-
-### Arbitrum Mainnet
-
-1. Add network to `contracts/hardhat.config.ts`
-2. Fund deployer wallet with mainnet ETH
-3. `npx hardhat run scripts/deploy.ts --network arbitrum`
-4. `npx hardhat verify --network arbitrum <ADDRESS>`
 
 ---
 
-## 🔮 Future Roadmap
+## Roadmap
 
 | Version | Features |
 |---------|---------|
-| **v1.1** | ZK-SNARKs for slippage proof, batch execution, order-book matching |
-| **v1.2** | Ethereum + Optimism + Base deployment, cross-chain routing |
-| **v1.3** | API-key auth, bulk history export, WebSocket event feed |
-| **v2.0** | 0G AI price prediction, automated MEV strategy, DEX aggregation |
+| v1.1 | ZK-SNARKs for slippage proof, batch execution |
+| v1.2 | Ethereum + Optimism + Base deployment |
+| v1.3 | WebSocket event feed, bulk history export |
+| v2.0 | 0G AI price prediction, DEX aggregation |
 
 ---
 
-## 👤 Team
+## Team
 
-| Name | Role | Links |
-|------|------|-------|
-| **Arpit Chauhan** | Full-stack Web3 Developer | [GitHub](https://github.com/arpit2222) |
-
-Built solo for the **0G APAC Hackathon** in 4 days.
+Built solo by **Arpit Chauhan** for the **0G APAC Hackathon 2026**.
 
 ---
 
-## 📜 License
+## License
 
-[MIT](LICENSE) © 2024 Arpit Chauhan
+[MIT](LICENSE) © 2026 Arpit Chauhan
 
 ---
 
 <div align="center">
 
-**Built with ❤️ on [0G Network](https://0g.ai) · Deployed on [Arbitrum](https://arbitrum.io)**
+**Built on [0G Network](https://0g.ai) · Deployed on [Arbitrum](https://arbitrum.io)**
 
 *VerifyTrade — because every trade deserves a proof.*
 
